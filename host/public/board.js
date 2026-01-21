@@ -334,44 +334,76 @@ function createPlayerPieces() {
       // Scale appropriately
       pieceGroup.scale.set(0.5, 0.5, 0.5);
     } else {
-      // Fallback: Create player piece group for better visuals
+      // Fallback: Create enhanced procedural player piece
       pieceGroup = new THREE.Group();
       
-      // Main body (improved cone with better shape)
-      const geometry = new THREE.ConeGeometry(0.8, 2, 8);
-      const material = new THREE.MeshStandardMaterial({
+      // Base platform
+      const baseGeometry = new THREE.CylinderGeometry(1.0, 1.0, 0.3, 16);
+      const baseMaterial = new THREE.MeshStandardMaterial({
+        color: colors[i],
+        emissive: colors[i],
+        emissiveIntensity: 0.2,
+        roughness: 0.7,
+        metalness: 0.2
+      });
+      const base = new THREE.Mesh(baseGeometry, baseMaterial);
+      base.position.y = -0.85;
+      base.castShadow = true;
+      base.receiveShadow = true;
+      pieceGroup.add(base);
+      
+      // Main body (tapered cylinder for better Mario Party look)
+      const bodyGeometry = new THREE.CylinderGeometry(0.7, 0.9, 1.8, 12);
+      const bodyMaterial = new THREE.MeshStandardMaterial({
         color: colors[i],
         emissive: colors[i],
         emissiveIntensity: 0.5,
         roughness: 0.5,
         metalness: 0.3
       });
-      const piece = new THREE.Mesh(geometry, material);
-      piece.castShadow = true;
-      pieceGroup.add(piece);
+      const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+      body.position.y = 0.1;
+      body.castShadow = true;
+      pieceGroup.add(body);
       
-      // Add glow ring at base
-      const ringGeometry = new THREE.TorusGeometry(0.9, 0.1, 8, 16);
+      // Glow ring at base
+      const ringGeometry = new THREE.TorusGeometry(1.0, 0.08, 8, 24);
       const ringMaterial = new THREE.MeshBasicMaterial({
         color: colors[i],
         transparent: true,
-        opacity: 0.6
+        opacity: 0.7
       });
       const ring = new THREE.Mesh(ringGeometry, ringMaterial);
       ring.rotation.x = Math.PI / 2;
-      ring.position.y = -1;
+      ring.position.y = -0.7;
       pieceGroup.add(ring);
       
-      // Add player number sphere on top
-      const numberGeometry = new THREE.SphereGeometry(0.3, 8, 8);
-      const numberMaterial = new THREE.MeshBasicMaterial({
+      // Player number indicator (colored sphere with number)
+      const numberGeometry = new THREE.SphereGeometry(0.35, 12, 12);
+      const numberMaterial = new THREE.MeshStandardMaterial({
         color: 0xffffff,
-        transparent: true,
-        opacity: 0.9
+        emissive: 0xffffff,
+        emissiveIntensity: 0.3,
+        roughness: 0.3,
+        metalness: 0.7
       });
       const numberSphere = new THREE.Mesh(numberGeometry, numberMaterial);
-      numberSphere.position.y = 1.2;
+      numberSphere.position.y = 1.3;
       pieceGroup.add(numberSphere);
+      
+      // Add colored band around middle
+      const bandGeometry = new THREE.TorusGeometry(0.8, 0.1, 8, 24);
+      const bandMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: colors[i],
+        emissiveIntensity: 0.4,
+        roughness: 0.4,
+        metalness: 0.5
+      });
+      const band = new THREE.Mesh(bandGeometry, bandMaterial);
+      band.rotation.x = Math.PI / 2;
+      band.position.y = 0.1;
+      pieceGroup.add(band);
     }
     
     pieceGroup.position.copy(boardState.boardPath[0]);
