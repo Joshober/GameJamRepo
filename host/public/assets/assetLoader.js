@@ -63,7 +63,10 @@ class AssetLoader {
         },
         (error) => {
           this.loadingPromises.delete(path);
-          console.warn(`Failed to load model: ${path}`, error);
+          // Only log warning if it's not a 404 (expected for optional assets)
+          if (error && error.message && !error.message.includes('404')) {
+            console.warn(`Failed to load model: ${path}`, error);
+          }
           reject(error);
         }
       );
@@ -100,7 +103,12 @@ class AssetLoader {
         undefined,
         (error) => {
           this.loadingPromises.delete(path);
-          console.warn(`Failed to load texture: ${path}`, error);
+          // Suppress 404 errors silently (expected for optional assets)
+          if (error && error.target && error.target.status === 404) {
+            // Silent fail for missing textures
+          } else if (error && (!error.message || !error.message.includes('404'))) {
+            console.warn(`Failed to load texture: ${path}`, error);
+          }
           reject(error);
         }
       );

@@ -109,17 +109,14 @@ async function loadAssets() {
   }
   
   // Try .glb first, then .gltf as fallback
+  // Only load assets that we actually have (characters and dice)
+  // Board base, space markers, and textures are optional and will use procedural fallbacks
   const assetList = [
-    { type: 'model', name: 'boardBase', path: ASSET_PATHS.boardBase },
-    { type: 'model', name: 'spaceMarker', path: ASSET_PATHS.spaceMarker },
     { type: 'model', name: 'character1', path: ASSET_PATHS.character1 },
     { type: 'model', name: 'character2', path: ASSET_PATHS.character2 },
     { type: 'model', name: 'character3', path: ASSET_PATHS.character3 },
     { type: 'model', name: 'character4', path: ASSET_PATHS.character4 },
     { type: 'model', name: 'dice', path: ASSET_PATHS.dice },
-    { type: 'texture', name: 'boardWood', path: ASSET_PATHS.boardWood },
-    { type: 'texture', name: 'spaceNormal', path: ASSET_PATHS.spaceNormal },
-    { type: 'texture', name: 'spaceBonus', path: ASSET_PATHS.spaceBonus },
   ];
   
   try {
@@ -344,14 +341,22 @@ function createPlayerPieces() {
         if (child.isMesh && child.material) {
           if (Array.isArray(child.material)) {
             child.material.forEach(mat => {
-              mat.color.setHex(colors[i]);
-              mat.emissive.setHex(colors[i]);
-              mat.emissiveIntensity = 0.3;
+              if (mat && mat.color) {
+                mat.color.setHex(colors[i]);
+                if (mat.emissive) {
+                  mat.emissive.setHex(colors[i]);
+                  mat.emissiveIntensity = 0.3;
+                }
+              }
             });
           } else {
-            child.material.color.setHex(colors[i]);
-            child.material.emissive.setHex(colors[i]);
-            child.material.emissiveIntensity = 0.3;
+            if (child.material.color) {
+              child.material.color.setHex(colors[i]);
+            }
+            if (child.material.emissive) {
+              child.material.emissive.setHex(colors[i]);
+              child.material.emissiveIntensity = 0.3;
+            }
           }
           child.castShadow = true;
         }
