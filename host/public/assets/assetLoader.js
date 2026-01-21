@@ -50,6 +50,21 @@ class AssetLoader {
 
     // Start loading
     const promise = new Promise((resolve, reject) => {
+      // Set texture path resolver - extract base path from model path
+      const basePath = path.substring(0, path.lastIndexOf('/') + 1);
+      this.loader.setPath(basePath);
+      
+      // Handle texture loading errors gracefully
+      const originalOnError = this.loader.manager.onError;
+      this.loader.manager.onError = (url) => {
+        // Suppress 404 errors for textures (they're optional)
+        if (url && url.includes('404')) {
+          // Silent fail for missing textures
+          return;
+        }
+        if (originalOnError) originalOnError(url);
+      };
+      
       this.loader.load(
         path,
         (gltf) => {
@@ -63,8 +78,10 @@ class AssetLoader {
         },
         (error) => {
           this.loadingPromises.delete(path);
-          // Only log warning if it's not a 404 (expected for optional assets)
-          if (error && error.message && !error.message.includes('404')) {
+          // Suppress 404 errors silently (expected for optional assets)
+          if (error && error.target && error.target.status === 404) {
+            // Silent fail for missing assets
+          } else if (error && (!error.message || !error.message.includes('404'))) {
             console.warn(`Failed to load model: ${path}`, error);
           }
           reject(error);
