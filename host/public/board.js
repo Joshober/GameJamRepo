@@ -12,6 +12,9 @@ try {
   assetLoaderAvailable = false;
 }
 
+// Board configuration
+let boardConfig = null;
+
 // Game state
 let boardState = {
   players: [
@@ -24,7 +27,9 @@ let boardState = {
   gamePhase: 'waiting', // waiting, rolling, moving, spaceEffect, minigame
   spaces: [],
   boardPath: [],
-  totalSpaces: 40
+  totalSpaces: 28,
+  nodes: [],
+  edges: []
 };
 
 // Main game state (synced from server)
@@ -55,11 +60,14 @@ async function init() {
   // Show loading indicator
   showLoadingIndicator();
   
+  // Load board configuration
+  await loadBoardConfig();
+  
   // Try to load assets
   await loadAssets();
   
   // Create board and pieces (will use assets if loaded, fallback otherwise)
-  createBoard();
+  await createBoard();
   createPlayerPieces();
   createDice();
   setupLighting();
@@ -101,6 +109,20 @@ function hideLoadingIndicator() {
   }
 }
 
+async function loadBoardConfig() {
+  try {
+    const response = await fetch('/board.json');
+    boardConfig = await response.json();
+    boardState.totalSpaces = boardConfig.nodes.length;
+    boardState.nodes = boardConfig.nodes;
+    boardState.edges = boardConfig.edges;
+    console.log('Loaded board config:', boardConfig.meta.name);
+  } catch (error) {
+    console.warn('Failed to load board.json, using default board:', error);
+    // Use default circular board if JSON fails
+  }
+}
+
 async function loadAssets() {
   if (!assetLoaderAvailable || !assetLoader) {
     console.log('Asset loader not available, using procedural models');
@@ -108,9 +130,7 @@ async function loadAssets() {
     return;
   }
   
-  // Try .glb first, then .gltf as fallback
-  // Only load assets that we actually have (characters and dice)
-  // Board base, space markers, and textures are optional and will use procedural fallbacks
+  // Load essential assets
   const assetList = [
     { type: 'model', name: 'character1', path: ASSET_PATHS.character1 },
     { type: 'model', name: 'character2', path: ASSET_PATHS.character2 },
@@ -119,11 +139,44 @@ async function loadAssets() {
     { type: 'model', name: 'dice', path: ASSET_PATHS.dice },
   ];
   
+  // Load board tiles (try to load common ones)
+  const boardTiles = [
+    'path-straight', 'path-corner', 'path-crossing', 'path-end',
+    'path-intersectionA', 'path-intersectionB', 'path-intersectionC', 'path-intersectionD',
+    'grass', 'dirt', 'stone', 'water'
+  ];
+  
+  for (const tile of boardTiles) {
+    assetList.push({
+      type: 'model',
+      name: `board_${tile}`,
+      path: `/assets/models/board/${tile}.glb`
+    });
+  }
+  
+  // Load dice textures
+  const diceTextures = [
+    '/assets/textures/dice/dice_1.png',
+    '/assets/textures/dice/dice_2.png',
+    '/assets/textures/dice/dice_3.png',
+    '/assets/textures/dice/dice_4.png',
+    '/assets/textures/dice/dice_5.png',
+    '/assets/textures/dice/dice_6.png'
+  ];
+  
+  for (const texPath of diceTextures) {
+    assetList.push({
+      type: 'texture',
+      name: `dice_tex_${texPath.split('/').pop().replace('.png', '')}`,
+      path: texPath
+    });
+  }
+  
   try {
     // Try primary paths (.glb)
     loadedAssets = await assetLoader.loadAssets(assetList);
     
-    // Try fallback paths (.gltf) for assets that failed
+    // Try fallback paths (.gltf) for characters and dice
     const fallbackPaths = {
       character1: ASSET_PATHS.character1Alt,
       character2: ASSET_PATHS.character2Alt,
@@ -142,6 +195,21 @@ async function loadAssets() {
           }
         } catch (e) {
           // Fallback also failed, will use procedural model
+        }
+      }
+    }
+    
+    // Load decor models from board.json if available
+    if (boardConfig && boardConfig.decor) {
+      for (const decor of boardConfig.decor) {
+        if (decor.optional && !loadedAssets[`decor_${decor.model}`]) continue;
+        try {
+          const decorModel = await assetLoader.loadModel(decor.model);
+          if (decorModel) {
+            loadedAssets[`decor_${decor.model}`] = decorModel;
+          }
+        } catch (e) {
+          // Decor model failed, skip it
         }
       }
     }
@@ -189,146 +257,200 @@ function setupThreeJS() {
   window.addEventListener('resize', onWindowResize);
 }
 
-function createBoard() {
-  // Try to use loaded board texture, otherwise use default
-  let boardTexture = null;
-  if (loadedAssets.boardWood) {
-    boardTexture = loadedAssets.boardWood;
-    boardTexture.wrapS = THREE.RepeatWrapping;
-    boardTexture.wrapT = THREE.RepeatWrapping;
-    boardTexture.repeat.set(4, 4);
+async function createBoard() {
+  // Create base ground plane
+  const groundGeometry = new THREE.PlaneGeometry(100, 100);
+  const groundMaterial = new THREE.MeshStandardMaterial({
+    color: 0x4a6741, // Grass green
+    roughness: 0.9,
+    metalness: 0.1
+  });
+  const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // Use board.json if available, otherwise fallback to circular board
+  if (boardConfig && boardConfig.nodes) {
+    await createBoardFromConfig();
+  } else {
+    createCircularBoard();
   }
   
-  // Create board base with better materials
-  const boardGeometry = new THREE.PlaneGeometry(60, 60);
-  const boardMaterial = new THREE.MeshStandardMaterial({
-    color: 0x2d3561,
-    map: boardTexture,
-    roughness: 0.8,
-    metalness: 0.2,
-    emissive: 0x1a1a2e,
-    emissiveIntensity: 0.1
-  });
-  const board = new THREE.Mesh(boardGeometry, boardMaterial);
-  board.rotation.x = -Math.PI / 2;
-  board.receiveShadow = true;
-  scene.add(board);
-  
-  // Try to load board base model if available
-  if (loadedAssets.boardBase && loadedAssets.boardBase.scene) {
-    const boardModel = loadedAssets.boardBase.scene.clone();
-    boardModel.rotation.x = -Math.PI / 2;
-    boardModel.position.y = 0.1;
-    scene.add(boardModel);
+  // Place decor models
+  if (boardConfig && boardConfig.decor) {
+    placeDecorModels();
   }
+}
 
-  // Add decorative border
-  const borderGeometry = new THREE.RingGeometry(28, 30, 64);
-  const borderMaterial = new THREE.MeshStandardMaterial({
-    color: 0x4a90e2,
-    emissive: 0x4a90e2,
-    emissiveIntensity: 0.3
-  });
-  const border = new THREE.Mesh(borderGeometry, borderMaterial);
-  border.rotation.x = -Math.PI / 2;
-  border.position.y = 0.1;
-  scene.add(border);
-
-  // Create board path (circular/looping)
-  const radius = 20;
-  const centerX = 0;
-  const centerZ = 0;
+async function createBoardFromConfig() {
+  const nodes = boardConfig.nodes;
+  const edges = boardConfig.edges;
+  const nodeRadius = boardConfig.meta.style.nodeRadius || 0.55;
   
+  // Create node lookup
+  const nodeMap = {};
+  nodes.forEach(node => {
+    nodeMap[node.id] = node;
+  });
+  
+  // Build board path from nodes
   boardState.boardPath = [];
+  boardState.spaces = [];
+  
+  // Create spaces from nodes
+  nodes.forEach((node, index) => {
+    const pos = new THREE.Vector3(node.pos[0], node.pos[1] + 0.5, node.pos[2]);
+    boardState.boardPath.push(pos);
+    
+    // Map node type to space type
+    let spaceType = 'blue';
+    let color = 0x4a90e2; // Blue default
+    
+    if (node.type === 'start') { spaceType = 'start'; color = 0x00ff00; }
+    else if (node.type === 'red') { spaceType = 'red'; color = 0xff0000; }
+    else if (node.type === 'mini') { spaceType = 'minigame'; color = 0xff6600; }
+    else if (node.type === 'event') { spaceType = 'event'; color = 0x9b59b6; }
+    else if (node.type === 'star') { spaceType = 'star'; color = 0xffd700; }
+    else if (node.type === 'shop') { spaceType = 'shop'; color = 0xff00ff; }
+    else if (node.type === 'warp_in' || node.type === 'warp_out') { spaceType = 'warp'; color = 0x00ffff; }
+    
+    boardState.spaces.push({
+      id: node.id,
+      type: spaceType,
+      position: pos,
+      nodeType: node.type
+    });
+    
+    // Create space marker
+    createSpaceMarker(pos, spaceType, color, nodeRadius);
+  });
+  
+  // Create paths between nodes using board tiles
+  edges.forEach(edge => {
+    const [fromId, toId] = edge;
+    const fromNode = nodeMap[fromId];
+    const toNode = nodeMap[toId];
+    
+    if (fromNode && toNode) {
+      createPathSegment(fromNode, toNode);
+    }
+  });
+}
+
+function createPathSegment(fromNode, toNode) {
+  const from = new THREE.Vector3(fromNode.pos[0], 0, fromNode.pos[2]);
+  const to = new THREE.Vector3(toNode.pos[0], 0, toNode.pos[2]);
+  const direction = new THREE.Vector3().subVectors(to, from).normalize();
+  const distance = from.distanceTo(to);
+  const steps = Math.ceil(distance / 2); // Place tiles every 2 units
+  
+  // Try to use path-straight tile, fallback to procedural
+  const pathTile = loadedAssets.board_path_straight || loadedAssets['board_path-straight'];
+  
+  for (let i = 0; i < steps; i++) {
+    const t = i / steps;
+    const pos = new THREE.Vector3().lerpVectors(from, to, t);
+    pos.y = 0.1;
+    
+    if (pathTile && pathTile.scene) {
+      const tile = pathTile.scene.clone();
+      tile.position.copy(pos);
+      tile.rotation.y = Math.atan2(direction.x, direction.z);
+      scene.add(tile);
+    } else {
+      // Procedural path tile
+      const tileGeometry = new THREE.BoxGeometry(1.8, 0.2, 1.8);
+      const tileMaterial = new THREE.MeshStandardMaterial({
+        color: 0x8b7355, // Brown path
+        roughness: 0.8
+      });
+      const tile = new THREE.Mesh(tileGeometry, tileMaterial);
+      tile.position.copy(pos);
+      tile.receiveShadow = true;
+      scene.add(tile);
+    }
+  }
+}
+
+function createSpaceMarker(pos, spaceType, color, radius) {
+  let spaceMesh;
+  
+  // Try to use grass tile as base
+  const grassTile = loadedAssets.board_grass;
+  if (grassTile && grassTile.scene) {
+    spaceMesh = grassTile.scene.clone();
+    spaceMesh.scale.set(radius * 2, 1, radius * 2);
+    spaceMesh.position.copy(pos);
+    spaceMesh.position.y = 0.05;
+    scene.add(spaceMesh);
+  }
+  
+  // Create space indicator
+  const spaceGeometry = new THREE.CylinderGeometry(radius, radius, 0.15, 16);
+  const spaceMaterial = new THREE.MeshStandardMaterial({
+    color: color,
+    emissive: color,
+    emissiveIntensity: spaceType === 'star' ? 0.8 : 0.3,
+    roughness: 0.7,
+    metalness: spaceType === 'star' ? 0.5 : 0.1
+  });
+  spaceMesh = new THREE.Mesh(spaceGeometry, spaceMaterial);
+  spaceMesh.position.copy(pos);
+  spaceMesh.castShadow = true;
+  spaceMesh.receiveShadow = true;
+  scene.add(spaceMesh);
+  spaceMeshes.push(spaceMesh);
+  
+  // Add glow for special spaces
+  if (spaceType === 'star' || spaceType === 'minigame') {
+    const glowGeometry = new THREE.CylinderGeometry(radius * 1.2, radius * 1.2, 0.05, 16);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+      color: color,
+      transparent: true,
+      opacity: 0.4
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    glow.position.copy(pos);
+    glow.position.y = 0.2;
+    scene.add(glow);
+  }
+}
+
+function placeDecorModels() {
+  boardConfig.decor.forEach(decor => {
+    const decorKey = `decor_${decor.model}`;
+    if (loadedAssets[decorKey] && loadedAssets[decorKey].scene) {
+      const model = loadedAssets[decorKey].scene.clone();
+      model.position.set(decor.pos[0], decor.pos[1], decor.pos[2]);
+      model.scale.set(decor.scale || 1, decor.scale || 1, decor.scale || 1);
+      model.rotation.y = decor.rotY || 0;
+      scene.add(model);
+    }
+  });
+}
+
+function createCircularBoard() {
+  // Fallback circular board if board.json not available
+  const radius = 20;
+  boardState.boardPath = [];
+  
   for (let i = 0; i < boardState.totalSpaces; i++) {
     const angle = (i / boardState.totalSpaces) * Math.PI * 2;
-    const x = centerX + Math.cos(angle) * radius;
-    const z = centerZ + Math.sin(angle) * radius;
-    boardState.boardPath.push(new THREE.Vector3(x, 0.5, z));
-  }
-
-  // Create spaces
-  boardState.spaces = [];
-  for (let i = 0; i < boardState.totalSpaces; i++) {
-    const pos = boardState.boardPath[i];
-    let spaceType = 'normal';
-    let color = 0x4a90e2; // Blue for normal
-
-    // Distribute space types
-    if (i % 8 === 0) spaceType = 'minigame', color = 0xff0000; // Red
-    else if (i % 7 === 0) spaceType = 'bonus', color = 0x00ff00; // Green
-    else if (i % 10 === 0) spaceType = 'star', color = 0xffd700; // Gold
-    else if (i % 6 === 0) spaceType = 'event', color = 0x9b59b6; // Purple
-
-    boardState.spaces.push({
-      id: i,
-      type: spaceType,
-      position: pos
-    });
-
-    // Try to use loaded space marker model, otherwise create procedural
-    let spaceMesh;
-    if (loadedAssets.spaceMarker && loadedAssets.spaceMarker.scene) {
-      spaceMesh = loadedAssets.spaceMarker.scene.clone();
-      spaceMesh.scale.set(1.2, 1.2, 1.2);
-      
-      // Apply color to materials
-      spaceMesh.traverse((child) => {
-        if (child.isMesh && child.material) {
-          if (Array.isArray(child.material)) {
-            child.material.forEach(mat => {
-              if (mat && mat.color) {
-                mat.color.setHex(color);
-                if (mat.emissive) {
-                  mat.emissive.setHex(color);
-                  mat.emissiveIntensity = spaceType === 'star' ? 0.8 : 0.3;
-                }
-              }
-            });
-          } else {
-            if (child.material && child.material.color) {
-              child.material.color.setHex(color);
-              if (child.material.emissive) {
-                child.material.emissive.setHex(color);
-                child.material.emissiveIntensity = spaceType === 'star' ? 0.8 : 0.3;
-              }
-            }
-          }
-        }
-      });
-    } else {
-      // Fallback: Create space mesh with enhanced visuals
-      const spaceGeometry = new THREE.CylinderGeometry(1.2, 1.2, 0.2, 16);
-      const spaceMaterial = new THREE.MeshStandardMaterial({
-        color: color,
-        emissive: color,
-        emissiveIntensity: spaceType === 'star' ? 0.8 : 0.3,
-        roughness: 0.7,
-        metalness: spaceType === 'star' ? 0.5 : 0.1
-      });
-      spaceMesh = new THREE.Mesh(spaceGeometry, spaceMaterial);
-    }
+    const x = Math.cos(angle) * radius;
+    const z = Math.sin(angle) * radius;
+    const pos = new THREE.Vector3(x, 0.5, z);
+    boardState.boardPath.push(pos);
     
-    spaceMesh.position.copy(pos);
-    spaceMesh.castShadow = true;
-    spaceMesh.receiveShadow = true;
+    let spaceType = 'blue';
+    let color = 0x4a90e2;
+    if (i % 8 === 0) spaceType = 'minigame', color = 0xff0000;
+    else if (i % 7 === 0) spaceType = 'bonus', color = 0x00ff00;
+    else if (i % 10 === 0) spaceType = 'star', color = 0xffd700;
+    else if (i % 6 === 0) spaceType = 'event', color = 0x9b59b6;
     
-    // Add glow effect for special spaces
-    if (spaceType === 'star' || spaceType === 'minigame') {
-      const glowGeometry = new THREE.CylinderGeometry(1.4, 1.4, 0.1, 16);
-      const glowMaterial = new THREE.MeshBasicMaterial({
-        color: color,
-        transparent: true,
-        opacity: 0.3
-      });
-      const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-      glow.position.copy(pos);
-      glow.position.y = 0.15;
-      scene.add(glow);
-    }
-    
-    scene.add(spaceMesh);
-    spaceMeshes.push(spaceMesh);
+    boardState.spaces.push({ id: i, type: spaceType, position: pos });
+    createSpaceMarker(pos, spaceType, color, 0.55);
   }
 }
 
@@ -456,19 +578,63 @@ function createDice() {
   // Try to use loaded dice model
   if (loadedAssets.dice && loadedAssets.dice.scene) {
     diceMesh = loadedAssets.dice.scene.clone();
+    
+    // Apply dice textures if available
+    const textureLoader = new THREE.TextureLoader();
+    diceMesh.traverse((child) => {
+      if (child.isMesh && child.material) {
+        // Try to apply dice textures to faces
+        const materials = [];
+        for (let i = 0; i < 6; i++) {
+          const texKey = `dice_tex_dice_${i + 1}`;
+          if (loadedAssets[texKey]) {
+            materials.push(new THREE.MeshStandardMaterial({
+              map: loadedAssets[texKey],
+              roughness: 0.3,
+              metalness: 0.1
+            }));
+          } else {
+            materials.push(new THREE.MeshStandardMaterial({
+              color: 0xffffff,
+              roughness: 0.3,
+              metalness: 0.1
+            }));
+          }
+        }
+        if (materials.length === 6) {
+          child.material = materials;
+        }
+      }
+    });
+    
     diceMesh.scale.set(1.5, 1.5, 1.5);
     diceMesh.position.set(0, 5, 0);
     diceMesh.visible = false;
     scene.add(diceMesh);
   } else {
-    // Fallback: Create simple dice (white cube with dots)
+    // Fallback: Create simple dice with textures
     const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
-    const material = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.3,
-      metalness: 0.1
-    });
-    diceMesh = new THREE.Mesh(geometry, material);
+    const materials = [];
+    
+    // Create materials for each face with textures
+    for (let i = 1; i <= 6; i++) {
+      const texKey = `dice_tex_dice_${i}`;
+      if (loadedAssets[texKey]) {
+        materials.push(new THREE.MeshStandardMaterial({
+          map: loadedAssets[texKey],
+          roughness: 0.3,
+          metalness: 0.1
+        }));
+      } else {
+        materials.push(new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          roughness: 0.3,
+          metalness: 0.1
+        }));
+      }
+    }
+    
+    diceMesh = new THREE.Mesh(geometry, materials);
     diceMesh.position.set(0, 5, 0);
     diceMesh.visible = false;
     scene.add(diceMesh);
