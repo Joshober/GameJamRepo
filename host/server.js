@@ -144,6 +144,19 @@ let state = {
 
 let currentGame = null; // Track currently running game
 
+// Board game state
+let boardGameState = {
+  players: [
+    { id: 0, name: 'P1', position: 0, coins: 0, stars: 0 },
+    { id: 1, name: 'P2', position: 0, coins: 0, stars: 0 },
+    { id: 2, name: 'P3', position: 0, coins: 0, stars: 0 },
+    { id: 3, name: 'P4', position: 0, coins: 0, stars: 0 }
+  ],
+  currentTurn: 0,
+  gamePhase: 'waiting',
+  totalSpaces: 40
+};
+
 state.games = listMinigames();
 
 app.use(express.static(path.join(__dirname, "public")));
@@ -156,13 +169,78 @@ app.get("/api/games", (req, res) => {
 
 app.get("/api/state", (req, res) => res.json(state));
 
+// Board game API endpoints
+app.get("/api/board/state", (req, res) => {
+  // Sync board game coins/stars with main state
+  boardGameState.players.forEach((p, i) => {
+    p.coins = state.coins[i] || 0;
+    p.stars = state.stars[i] || 0;
+  });
+  res.json({ state: boardGameState });
+});
+
+app.post("/api/board/state", (req, res) => {
+  const newState = req.body.state;
+  if (newState) {
+    boardGameState = newState;
+    // Sync back to main state
+    state.coins = boardGameState.players.map(p => p.coins);
+    state.stars = boardGameState.players.map(p => p.stars);
+    broadcast({ type: "BOARD_STATE", payload: boardGameState });
+    broadcast({ type: "STATE", payload: state });
+  }
+  res.json({ ok: true });
+});
+
+app.post("/api/board/roll", (req, res) => {
+  const playerId = req.body.playerId;
+  if (playerId !== boardGameState.currentTurn) {
+    return res.status(400).json({ ok: false, error: "Not your turn" });
+  }
+  if (boardGameState.gamePhase !== 'waiting') {
+    return res.status(400).json({ ok: false, error: "Invalid game phase" });
+  }
+  
+  const result = Math.floor(Math.random() * 6) + 1;
+  boardGameState.gamePhase = 'rolling';
+  broadcast({ type: "BOARD_STATE", payload: boardGameState });
+  res.json({ ok: true, result });
+});
+
+app.post("/api/board/move", (req, res) => {
+  const playerId = req.body.playerId;
+  const spaces = req.body.spaces;
+  
+  if (playerId !== boardGameState.currentTurn) {
+    return res.status(400).json({ ok: false, error: "Not your turn" });
+  }
+  
+  const player = boardGameState.players[playerId];
+  player.position = (player.position + spaces) % boardGameState.totalSpaces;
+  boardGameState.gamePhase = 'moving';
+  
+  broadcast({ type: "BOARD_STATE", payload: boardGameState });
+  res.json({ ok: true, position: player.position });
+});
+
 app.post("/api/reset", (req, res) => {
   state.scores = [0,0,0,0];
   state.coins = [0,0,0,0];
   state.stars = [0,0,0,0];
   state.lastResult = null;
   state.prizeHistory = [];
+  
+  // Reset board game state
+  boardGameState.players.forEach(p => {
+    p.position = 0;
+    p.coins = 0;
+    p.stars = 0;
+  });
+  boardGameState.currentTurn = 0;
+  boardGameState.gamePhase = 'waiting';
+  
   broadcast({ type: "STATE", payload: state });
+  broadcast({ type: "BOARD_STATE", payload: boardGameState });
   res.json({ ok: true });
 });
 
@@ -271,6 +349,12 @@ function applyResult(result) {
   // Add coins and stars to player totals
   state.coins = state.coins.map((c, i) => c + prizes.coins[i]);
   state.stars = state.stars.map((s, i) => s + prizes.stars[i]);
+  
+  // Sync with board game state
+  boardGameState.players.forEach((p, i) => {
+    p.coins = state.coins[i];
+    p.stars = state.stars[i];
+  });
   
   // Add raw scores to total scores
   state.scores = state.scores.map((s, i) => s + (Number(gameScores[i]) || 0));

@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Mario Party Board Game</title>
+  <link rel="stylesheet" href="board.css"/>
+</head>
+<body>
+  <div id="board-container">
+    <canvas id="board-canvas"></canvas>
+  </div>
+
+  <!-- UI Overlay -->
+  <div id="ui-overlay">
+    <!-- Scoreboard -->
+    <div id="scoreboard" class="ui-panel">
+      <h2>Scoreboard</h2>
+      <div id="player-scores"></div>
+    </div>
+
+    <!-- Turn Indicator -->
+    <div id="turn-indicator" class="ui-panel">
+      <div id="current-turn">Player 1's Turn</div>
+      <button id="roll-dice-btn" class="action-btn" disabled>Roll Dice</button>
+    </div>
+
+    <!-- Dice Result -->
+    <div id="dice-result" class="ui-panel hidden">
+      <div id="dice-value">0</div>
+    </div>
+
+    <!-- Space Info -->
+    <div id="space-info" class="ui-panel hidden">
+      <h3 id="space-name">Space Name</h3>
+      <p id="space-description">Space description</p>
+    </div>
+
+    <!-- Minigame Selection (shown when landing on minigame space) -->
+    <div id="minigame-select" class="ui-panel hidden">
+      <h3>Select Minigame</h3>
+      <div id="minigame-list"></div>
+      <button id="cancel-minigame" class="action-btn">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Three.js from CDN -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module" src="board.js"></script>
+</body>
+</html>
