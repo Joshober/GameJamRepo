@@ -1,5 +1,10 @@
 FROM node:20-slim
 
+# Install unzip for extracting dice textures
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY package.json ./
 RUN npm install

@@ -36,8 +36,29 @@ fi
 if [ -f "$DICE_TAR" ]; then
     echo "Extracting dice model from archive..."
     cd "$ASSETS_DIR/models"
-    tar -xzf dice.tar.gz -C dice/ 2>/dev/null || true
+    mkdir -p temp_extract
+    tar -xzf dice.tar.gz -C temp_extract 2>/dev/null || true
+    if [ -d "temp_extract/dice" ]; then
+        mv temp_extract/dice/* "$DICE_DIR/" 2>/dev/null || true
+    elif [ -f "temp_extract/dice.glb" ] || [ -f "temp_extract/dice.gltf" ]; then
+        mv temp_extract/dice.glb temp_extract/dice.gltf "$DICE_DIR/" 2>/dev/null || true
+    fi
+    rm -rf temp_extract 2>/dev/null || true
     echo "✓ Dice model extracted"
+fi
+
+# Extract dice textures if available (ZIP format)
+DICE_TEXTURES_ZIP="$ASSETS_DIR/models/dice_textures.zip"
+if [ -f "$DICE_TEXTURES_ZIP" ]; then
+    echo "Extracting dice textures..."
+    mkdir -p "$ASSETS_DIR/textures/dice"
+    # Use unzip if available, or Python as fallback
+    if command -v unzip >/dev/null 2>&1; then
+        unzip -q -o "$DICE_TEXTURES_ZIP" -d "$ASSETS_DIR/textures/dice" 2>/dev/null || true
+    elif command -v python3 >/dev/null 2>&1; then
+        python3 -c "import zipfile; zipfile.ZipFile('$DICE_TEXTURES_ZIP').extractall('$ASSETS_DIR/textures/dice')" 2>/dev/null || true
+    fi
+    echo "✓ Dice textures extracted"
 fi
 
 # Check what we have
