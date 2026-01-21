@@ -13,8 +13,8 @@ RUN mkdir -p public/assets/models/board \
     public/assets/models/dice \
     public/assets/textures
 
-# Check for assets in repository first (fastest)
-# If assets exist in repo, use them; otherwise generate procedural fallbacks
+# Extract assets from repository (fast - no downloads needed!)
+# Assets are stored as tar.gz files in the repo
 RUN if [ -f public/assets/extract-assets.sh ]; then \
     chmod +x public/assets/extract-assets.sh && \
     public/assets/extract-assets.sh; \
@@ -30,7 +30,7 @@ RUN if [ ! -f public/assets/models/characters/character_1.glb ] && \
 
 RUN if [ ! -f public/assets/models/dice/dice.glb ] && \
        [ ! -f public/assets/models/dice/dice.gltf ]; then \
-    echo "No dice model found, generating procedural dice..." && \
+    echo "No dice model found in repo, generating procedural dice..." && \
     (node public/assets/generate-assets.js || echo "Asset generation completed"); \
     fi
 
