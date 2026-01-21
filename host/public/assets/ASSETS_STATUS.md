@@ -12,10 +12,15 @@
 - **Source**: Downloaded from https://kenney.nl/assets/blocky-characters using Playwright
 - **Status**: ✅ Committed to repository
 
-### Dice Model
-- **Status**: ⚠️ 3D model not downloaded (URLs failed)
-- **Fallback**: Procedural GLTF dice is automatically generated
-- **Works**: ✅ Yes, procedural dice works fine
+### Dice Models (NEW!)
+- **File**: `host/public/assets/models/dice.tar.gz`
+- **Contains**: 
+  - `dice.glb` (0.49MB) - Main dice model from Filer.dev
+  - `dice_6.glb` (0.05MB) - Alternative 6-dice model
+  - `dice_free.glb` (0.03MB) - Free dice variant
+- **Source**: Downloaded from https://www.filer.dev/3d-models (CC0/Free Standard license)
+- **Status**: ✅ Committed to repository
+- **Fallback**: Procedural GLTF dice is still generated if extraction fails
 
 ### Dice Textures (NEW!)
 - **File**: `host/public/assets/models/dice_textures.zip`

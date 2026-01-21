@@ -32,19 +32,21 @@ if [ -f "$CHARACTERS_TAR" ]; then
     echo "✓ Character models extracted"
 fi
 
-# Extract dice model from tar.gz if it exists
+# Extract dice models from tar.gz if it exists
 if [ -f "$DICE_TAR" ]; then
-    echo "Extracting dice model from archive..."
+    echo "Extracting dice models from archive..."
     cd "$ASSETS_DIR/models"
     mkdir -p temp_extract
     tar -xzf dice.tar.gz -C temp_extract 2>/dev/null || true
+    # Move all dice GLB files to dice directory
     if [ -d "temp_extract/dice" ]; then
         mv temp_extract/dice/* "$DICE_DIR/" 2>/dev/null || true
-    elif [ -f "temp_extract/dice.glb" ] || [ -f "temp_extract/dice.gltf" ]; then
-        mv temp_extract/dice.glb temp_extract/dice.gltf "$DICE_DIR/" 2>/dev/null || true
+    else
+        # Files are at root of archive
+        mv temp_extract/*.glb temp_extract/*.gltf "$DICE_DIR/" 2>/dev/null || true
     fi
     rm -rf temp_extract 2>/dev/null || true
-    echo "✓ Dice model extracted"
+    echo "✓ Dice models extracted"
 fi
 
 # Extract dice textures if available (ZIP format)
