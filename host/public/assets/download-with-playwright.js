@@ -11,6 +11,8 @@ import { promisify } from 'util';
 import stream from 'stream';
 import https from 'https';
 import http from 'http';
+import { extractZip } from './extract-zip.js';
+import { execSync } from 'child_process';
 
 const pipeline = promisify(stream.pipeline);
 const __filename = fileURLToPath(import.meta.url);
@@ -140,14 +142,25 @@ async function downloadFromKenney(browser) {
   
   const kenneyAssets = [
     {
-      url: 'https://kenney.nl/assets/board-game-kit',
-      name: 'Board Game Kit',
-      outputDir: path.join(ASSETS_DIR, 'models')
-    },
-    {
-      url: 'https://kenney.nl/assets/3d-characters',
-      name: '3D Characters',
-      outputDir: path.join(ASSETS_DIR, 'models/characters')
+      url: 'https://kenney.nl/assets/blocky-characters',
+      name: 'Blocky Characters',
+      outputDir: path.join(ASSETS_DIR, 'models/characters'),
+      extractTo: 'models/characters',
+      filterFiles: (filePath) => {
+        // Extract GLTF/GLB character files
+        const lowerPath = filePath.toLowerCase();
+        if (lowerPath.endsWith('.glb') || lowerPath.endsWith('.gltf')) {
+          // Try to name them character_1.glb, character_2.glb, etc.
+          const filename = path.basename(filePath);
+          return `models/characters/${filename}`;
+        }
+        // Also extract FBX/OBJ if present (we can convert later)
+        if (lowerPath.endsWith('.fbx') || lowerPath.endsWith('.obj')) {
+          const filename = path.basename(filePath);
+          return `models/characters/${filename}`;
+        }
+        return null;
+      }
     }
   ];
 
@@ -186,149 +199,187 @@ async function downloadFromKenney(browser) {
         timeout: 30000 
       });
 
-      // Wait a bit for page to fully load
+      // Wait for page to be fully loaded
+      await page.waitForLoadState('networkidle');
       await page.waitForTimeout(2000);
 
       // Wait for page to be fully interactive
       await page.waitForLoadState('networkidle');
       await page.waitForTimeout(2000);
 
-      // Look for download button with multiple strategies
+      // Kenney.nl specific flow:
+      // 1. Click "Download" link (href="#inline-download")
+      // 2. Wait for dialog modal to appear
+      // 3. Click "Continue without donating..." link in the dialog
+      
       let clicked = false;
       
-      // Strategy 1: Look for common download button selectors
-      const downloadSelectors = [
-        'a[href*="download"]',
-        'button:has-text("Download")',
-        'a:has-text("Download")',
-        'a:has-text("DOWNLOAD")',
-        '.download',
-        '.download-button',
-        '[class*="download"]',
-        '[id*="download"]',
-        'a[href*=".zip"]',
-        'a[href*="/download"]',
-        'button[class*="btn"]',
-        'a.btn'
-      ];
-
-      for (const selector of downloadSelectors) {
-        try {
-          await page.waitForSelector(selector, { timeout: 3000 });
-          const element = await page.$(selector);
-          if (element) {
-            const isVisible = await element.isVisible();
-            if (isVisible) {
-              await element.click();
-              clicked = true;
-              console.log(`  ✓ Clicked download button: ${selector}`);
+      // Step 1: Find and click the Download link
+      try {
+        // Wait for page to be fully loaded
+        await page.waitForLoadState('domcontentloaded');
+        
+        // Look for the download link - Kenney.nl uses href="#inline-download"
+        // Try multiple ways to find it
+        const downloadSelectors = [
+          'a[href="#inline-download"]',
+          'a[href*="inline-download"]',
+          'a:has-text("Download")',
+          'a:has-text("DOWNLOAD")'
+        ];
+        
+        let downloadLink = null;
+        for (const selector of downloadSelectors) {
+          try {
+            downloadLink = await page.$(selector);
+            if (downloadLink && await downloadLink.isVisible()) {
               break;
             }
+            downloadLink = null;
+          } catch (e) {
+            // Try next selector
           }
-        } catch (e) {
-          // Try next selector
         }
-      }
-
-      // Strategy 2: Find all links and check for download-related text/href
-      if (!clicked) {
-        try {
-          const links = await page.$$eval('a', (elements) => 
-            elements.map(el => ({
-              href: el.getAttribute('href'),
-              text: el.textContent?.trim(),
-              visible: el.offsetParent !== null
-            }))
-          );
-
-          for (const linkInfo of links) {
-            if (!linkInfo.visible) continue;
+        
+        if (downloadLink) {
+          await downloadLink.click();
+          console.log(`  ✓ Clicked Download button`);
+          clicked = true;
+          
+          // Step 2: Wait for the dialog modal to appear
+          try {
+            await page.waitForSelector('dialog[open], dialog, [role="dialog"]', { timeout: 5000 });
+            await page.waitForTimeout(1500); // Give it a moment to fully render
             
-            const href = linkInfo.href?.toLowerCase() || '';
-            const text = linkInfo.text?.toLowerCase() || '';
+            // Step 3: Find and click "Continue without donating..." link
+            // This link contains the actual download URL
+            const continueSelectors = [
+              'a:has-text("Continue without donating")',
+              'a:has-text("Continue")',
+              'dialog a[href*=".zip"]',
+              'dialog a[href*="/media/"]',
+              '[role="dialog"] a[href*=".zip"]',
+              '[role="dialog"] a[href*="/media/"]'
+            ];
             
-            if (href.includes('download') || href.includes('.zip') || 
-                text.includes('download') || text.includes('get') ||
-                href.includes('/downloads/') || href.includes('/files/')) {
+            let continueClicked = false;
+            for (const selector of continueSelectors) {
               try {
-                await page.click(`a[href="${linkInfo.href}"]`);
-                clicked = true;
-                console.log(`  ✓ Clicked download link: ${linkInfo.href}`);
-                break;
+                const continueLink = await page.$(selector);
+                if (continueLink) {
+                  const href = await continueLink.getAttribute('href');
+                  const text = await continueLink.textContent();
+                  if (href && (href.includes('.zip') || href.includes('/media/'))) {
+                    await continueLink.click();
+                    console.log(`  ✓ Clicked continue link (${text?.trim() || 'link'}): ${href.substring(0, 60)}...`);
+                    continueClicked = true;
+                    break;
+                  }
+                }
               } catch (e) {
-                // Try next link
+                // Try next selector
               }
             }
-          }
-        } catch (e) {
-          console.log(`  Error finding links: ${e.message}`);
-        }
-      }
-
-      // Strategy 3: Look for buttons with download-related text
-      if (!clicked) {
-        try {
-          const buttons = await page.$$('button, a');
-          for (const button of buttons) {
-            const text = await button.textContent();
-            const href = await button.getAttribute('href');
-            if (text && (text.toLowerCase().includes('download') || 
-                        text.toLowerCase().includes('get') ||
-                        text.toLowerCase().includes('free'))) {
+            
+            // Fallback: Find any link in the dialog that looks like a download
+            if (!continueClicked) {
               try {
-                await button.click();
-                clicked = true;
-                console.log(`  ✓ Clicked button: ${text}`);
-                break;
+                const dialogLinks = await page.$$eval('dialog a, [role="dialog"] a', (links) => 
+                  links.map(link => ({
+                    href: link.getAttribute('href'),
+                    text: link.textContent?.trim(),
+                    visible: link.offsetParent !== null
+                  }))
+                );
+                
+                for (const linkInfo of dialogLinks) {
+                  if (!linkInfo.visible) continue;
+                  if (linkInfo.href && (linkInfo.href.includes('.zip') || 
+                                       linkInfo.href.includes('/media/') ||
+                                       linkInfo.text?.toLowerCase().includes('continue'))) {
+                    await page.click(`a[href="${linkInfo.href}"]`);
+                    console.log(`  ✓ Clicked dialog link: ${linkInfo.href.substring(0, 60)}...`);
+                    continueClicked = true;
+                    break;
+                  }
+                }
               } catch (e) {
-                // Continue
+                console.log(`  Could not find continue link in dialog: ${e.message}`);
               }
             }
+          } catch (e) {
+            console.log(`  Dialog did not appear or error: ${e.message}`);
           }
-        } catch (e) {
-          // Continue
+        } else {
+          console.log(`  Could not find Download link on page`);
         }
+      } catch (e) {
+        console.log(`  Error in download flow: ${e.message}`);
       }
 
       if (clicked) {
-        // Wait for download or redirect
-        await page.waitForTimeout(3000);
-        
-        // Check if we're on a "continue without donating" page
-        const continueSelectors = [
-          'a:has-text("Continue")',
-          'a:has-text("without")',
-          'a[href*="continue"]',
-          'button:has-text("Continue")'
-        ];
-
-        for (const selector of continueSelectors) {
-          try {
-            const element = await page.$(selector);
-            if (element) {
-              await element.click();
-              console.log(`  Clicked continue button`);
-              await page.waitForTimeout(2000);
-              break;
-            }
-          } catch (e) {
-            // Continue
-          }
-        }
-
         // Wait for download to complete
+        // The download should have been triggered by clicking the continue link
         try {
           const result = await Promise.race([
             downloadPromise,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 20000))
           ]);
           
           if (result && fs.existsSync(result.path)) {
-            console.log(`✓ Success: ${asset.name}`);
-            successCount++;
+            const fileSize = fs.statSync(result.path).size;
+            if (fileSize > 0) {
+              console.log(`✓ Downloaded: ${asset.name} (${(fileSize / 1024).toFixed(1)}KB)`);
+              
+              // Extract ZIP file if it's a ZIP
+              if (result.path.endsWith('.zip')) {
+                try {
+                  console.log(`  Extracting ZIP file...`);
+                  extractZip(result.path, ASSETS_DIR, asset.filterFiles);
+                  console.log(`✓ Extracted: ${asset.name}`);
+                  successCount++;
+                  
+                  // Clean up ZIP file after extraction
+                  fs.unlinkSync(result.path);
+                } catch (error) {
+                  console.log(`  Extraction error: ${error.message}`);
+                  // Still count as success if download worked
+                  successCount++;
+                }
+              } else {
+                // Not a ZIP, just mark as success
+                successCount++;
+              }
+            } else {
+              console.log(`  Downloaded file is empty`);
+              if (fs.existsSync(result.path)) fs.unlinkSync(result.path);
+            }
           }
         } catch (error) {
           console.log(`  Download timeout or error: ${error.message}`);
+          // Check if file was downloaded anyway (sometimes the promise doesn't fire)
+          const downloadedFiles = fs.readdirSync(DOWNLOAD_DIR);
+          if (downloadedFiles.length > 0) {
+            const latestFile = downloadedFiles[downloadedFiles.length - 1];
+            const filePath = path.join(DOWNLOAD_DIR, latestFile);
+            if (fs.statSync(filePath).size > 0) {
+              console.log(`✓ Found downloaded file: ${latestFile}`);
+              
+              // Extract if ZIP
+              if (latestFile.endsWith('.zip')) {
+                try {
+                  console.log(`  Extracting ZIP file...`);
+                  extractZip(filePath, ASSETS_DIR, asset.filterFiles);
+                  console.log(`✓ Extracted: ${asset.name}`);
+                  fs.unlinkSync(filePath);
+                } catch (error) {
+                  console.log(`  Extraction error: ${error.message}`);
+                }
+              }
+              
+              successCount++;
+            }
+          }
         }
       } else {
         console.log(`  Could not find download button for ${asset.name}`);

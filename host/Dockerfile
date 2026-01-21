@@ -4,6 +4,7 @@ FROM node:20-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     curl \
+    unzip \
     libnss3 \
     libnspr4 \
     libatk1.0-0 \
