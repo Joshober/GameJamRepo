@@ -64,6 +64,32 @@ if [ -f "$DICE_TEXTURES_ZIP" ]; then
 fi
 
 # Extract board tiles from zip if it exists
+BOARD_TILES_ZIP="$ASSETS_DIR/models/board_tiles.zip"
+if [ -f "$BOARD_TILES_ZIP" ]; then
+    echo "Extracting board tiles from archive..."
+    mkdir -p "$ASSETS_DIR/models/board" # Ensure target directory exists
+    if command -v unzip >/dev/null 2>&1; then
+        unzip -q -o "$BOARD_TILES_ZIP" -d "$ASSETS_DIR/models/board" 2>/dev/null || true
+    elif command -v python3 >/dev/null 2>&1; then
+        python3 -c "import zipfile; zipfile.ZipFile('$BOARD_TILES_ZIP').extractall('$ASSETS_DIR/models/board')" 2>/dev/null || true
+    fi
+    echo "✓ Board tiles extracted"
+fi
+
+# Extract dice models from zip if it exists
+DICE_MODELS_ZIP="$ASSETS_DIR/models/dice_models.zip"
+if [ -f "$DICE_MODELS_ZIP" ]; then
+    echo "Extracting dice models from archive..."
+    mkdir -p "$DICE_DIR" # Ensure target directory exists
+    if command -v unzip >/dev/null 2>&1; then
+        unzip -q -o "$DICE_MODELS_ZIP" -d "$DICE_DIR" 2>/dev/null || true
+    elif command -v python3 >/dev/null 2>&1; then
+        python3 -c "import zipfile; zipfile.ZipFile('$DICE_MODELS_ZIP').extractall('$DICE_DIR')" 2>/dev/null || true
+    fi
+    echo "✓ Dice models extracted (DAE format - may need conversion to GLB)"
+fi
+
+# Extract board tiles from zip if it exists
 if [ -f "$BOARD_TILES_ZIP" ]; then
     echo "Extracting board tiles from archive..."
     mkdir -p "$ASSETS_DIR/models/board" # Ensure target directory exists
@@ -92,13 +118,24 @@ if [ -f "$DICE_DIR/dice.glb" ] || [ -f "$DICE_DIR/dice.gltf" ]; then
     DICE_COUNT=1
 fi
 
+BOARD_TILE_COUNT=$(ls -1 "$ASSETS_DIR/models/board"/*.glb 2>/dev/null | wc -l)
+DICE_DAE_COUNT=$(ls -1 "$DICE_DIR"/*.dae 2>/dev/null | wc -l)
+
 if [ $CHAR_COUNT -gt 0 ]; then
     echo "✓ Found $CHAR_COUNT character model(s) ready to use"
 else
     echo "⚠ No character models found, will use procedural fallback"
 fi
 
-if [ $DICE_COUNT -gt 0 ]; then
+if [ $BOARD_TILE_COUNT -gt 0 ]; then
+    echo "✓ Found $BOARD_TILE_COUNT board tile model(s) ready to use"
+else
+    echo "⚠ No board tiles found, will use procedural fallback"
+fi
+
+if [ $DICE_DAE_COUNT -gt 0 ]; then
+    echo "⚠ Found $DICE_DAE_COUNT dice model(s) in DAE format (needs conversion to GLB)"
+elif [ $DICE_COUNT -gt 0 ]; then
     echo "✓ Found dice model ready to use"
 else
     echo "⚠ No dice model found, will use procedural fallback"
