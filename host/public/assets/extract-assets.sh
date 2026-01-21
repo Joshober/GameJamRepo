@@ -63,6 +63,22 @@ if [ -f "$DICE_TEXTURES_ZIP" ]; then
     echo "✓ Dice textures extracted"
 fi
 
+# Extract board tiles from zip if it exists
+if [ -f "$BOARD_TILES_ZIP" ]; then
+    echo "Extracting board tiles from archive..."
+    mkdir -p "$ASSETS_DIR/models/board" # Ensure target directory exists
+    unzip -o "$BOARD_TILES_ZIP" -d "$ASSETS_DIR/models/board" > /dev/null || true
+    echo "✓ Board tiles extracted"
+fi
+
+# Extract dice models from zip if it exists
+if [ -f "$DICE_MODELS_ZIP" ]; then
+    echo "Extracting dice models from archive..."
+    mkdir -p "$DICE_MODELS_DIR" # Ensure target directory exists
+    unzip -o "$DICE_MODELS_ZIP" -d "$DICE_MODELS_DIR" > /dev/null || true
+    echo "✓ Dice models extracted (DAE format - may need conversion to GLB)"
+fi
+
 # Check what we have
 CHAR_COUNT=0
 for i in 1 2 3 4; do
