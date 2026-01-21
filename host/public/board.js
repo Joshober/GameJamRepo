@@ -277,15 +277,21 @@ function createBoard() {
         if (child.isMesh && child.material) {
           if (Array.isArray(child.material)) {
             child.material.forEach(mat => {
-              mat.color.setHex(color);
-              mat.emissive.setHex(color);
-              mat.emissiveIntensity = spaceType === 'star' ? 0.8 : 0.3;
+              if (mat && mat.color) {
+                mat.color.setHex(color);
+                if (mat.emissive) {
+                  mat.emissive.setHex(color);
+                  mat.emissiveIntensity = spaceType === 'star' ? 0.8 : 0.3;
+                }
+              }
             });
           } else {
-            child.material.color.setHex(color);
-            if (child.material.emissive) {
-              child.material.emissive.setHex(color);
-              child.material.emissiveIntensity = spaceType === 'star' ? 0.8 : 0.3;
+            if (child.material && child.material.color) {
+              child.material.color.setHex(color);
+              if (child.material.emissive) {
+                child.material.emissive.setHex(color);
+                child.material.emissiveIntensity = spaceType === 'star' ? 0.8 : 0.3;
+              }
             }
           }
         }
@@ -599,7 +605,9 @@ function updateBoardVisuals() {
     const space = boardState.spaces[i];
     if (space && (space.type === 'star' || space.type === 'minigame')) {
       const pulse = Math.sin(Date.now() * 0.003) * 0.1 + 0.3;
-      mesh.material.emissiveIntensity = pulse;
+      if (mesh.material && mesh.material.emissive) {
+        mesh.material.emissiveIntensity = pulse;
+      }
     }
   });
 }
