@@ -74,27 +74,56 @@ function updateControllerStatus() {
   }
 }
 
+let previousCoins = [0, 0, 0, 0];
+let previousStars = [0, 0, 0, 0];
+
 function render() {
   if (!currentState) return;
   
-  // Render scores
+  // Render scores with player cards
   scoresEl.innerHTML = currentState.players
-    .map((p,i)=>`<div><b>${p}</b>: ${currentState.scores[i]} pts</div>`)
-    .join("");
-  
-  // Render coins and stars
-  prizesEl.innerHTML = currentState.players
     .map((p,i)=>`
-      <div class="prize-item">
-        <b>${p}</b>: 
-        <span class="coin">🪙 ${currentState.coins[i] || 0}</span>
-        <span class="star">⭐ ${currentState.stars[i] || 0}</span>
+      <div class="player-card player-${i+1}" style="margin-bottom:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <strong style="font-size:18px;">${p}</strong>
+            <div style="font-size:14px; color:var(--text-secondary); margin-top:4px;">
+              ${currentState.scores[i]} pts
+            </div>
+          </div>
+        </div>
       </div>
     `)
     .join("");
   
+  // Render coins and stars with animations
+  prizesEl.innerHTML = currentState.players
+    .map((p,i)=> {
+      const coinsChanged = currentState.coins[i] !== previousCoins[i];
+      const starsChanged = currentState.stars[i] !== previousStars[i];
+      previousCoins[i] = currentState.coins[i] || 0;
+      previousStars[i] = currentState.stars[i] || 0;
+      
+      return `
+        <div class="prize-item player-card player-${i+1}" style="margin-bottom:8px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+            <strong>${p}</strong>
+            <div style="display:flex; gap:16px;">
+              <span class="coin ${coinsChanged ? 'animate-bounce' : ''}" style="transition:all 0.3s;">
+                🪙 ${currentState.coins[i] || 0}
+              </span>
+              <span class="star ${starsChanged ? 'animate-bounce' : ''}" style="transition:all 0.3s;">
+                ⭐ ${currentState.stars[i] || 0}
+              </span>
+            </div>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+  
   lastEl.textContent = currentState.lastResult
-    ? `Last game: ${currentState.lastResult.gameId || "unknown"}`
+    ? `🎮 Last game: ${currentState.lastResult.gameId || "unknown"}`
     : "Last: (none)";
 }
 
@@ -103,22 +132,44 @@ function showPrizeBreakdown(data) {
   if (!prizes || !prizes.breakdown) return;
   
   prizeBreakdownEl.style.display = "block";
+  prizeBreakdownEl.style.animation = "none";
+  setTimeout(() => {
+    prizeBreakdownEl.style.animation = "bounce 0.5s ease";
+  }, 10);
+  
   prizeBreakdownEl.innerHTML = `
-    <strong>🏆 Prize Breakdown (${gameId})</strong>
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+      <span style="font-size:24px;">🏆</span>
+      <strong style="font-size:18px;">Prize Breakdown</strong>
+      <span class="badge badge-js" style="margin-left:auto;">${gameId}</span>
+    </div>
     ${prizes.breakdown.map(p => `
-      <div style="margin-top:8px; padding:8px; background:white; border-radius:6px;">
-        <span class="rank-badge rank-${p.rank}">${p.rank}</span>
-        <strong>Player ${p.player + 1}</strong>: 
-        Score: ${p.score} | 
-        <span class="coin">+${p.coins} 🪙</span>
-        ${p.stars > 0 ? `<span class="star">+${p.stars} ⭐</span>` : ''}
+      <div class="player-card player-${p.player + 1}" style="margin-top:12px; padding:12px;">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span class="rank-badge rank-${p.rank}">${p.rank}</span>
+          <div style="flex:1;">
+            <strong>Player ${p.player + 1}</strong>
+            <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
+              Score: ${p.score}
+            </div>
+          </div>
+          <div style="display:flex; gap:12px; align-items:center;">
+            <span class="coin" style="font-size:18px;">+${p.coins} 🪙</span>
+            ${p.stars > 0 ? `<span class="star" style="font-size:18px;">+${p.stars} ⭐</span>` : ''}
+          </div>
+        </div>
       </div>
     `).join("")}
   `;
   
-  // Auto-hide after 10 seconds
+  // Auto-hide after 10 seconds with fade
   setTimeout(() => {
-    prizeBreakdownEl.style.display = "none";
+    prizeBreakdownEl.style.opacity = "0";
+    prizeBreakdownEl.style.transition = "opacity 0.5s";
+    setTimeout(() => {
+      prizeBreakdownEl.style.display = "none";
+      prizeBreakdownEl.style.opacity = "1";
+    }, 500);
   }, 10000);
 }
 
@@ -128,7 +179,8 @@ async function refreshGames() {
   for (const g of games) {
     const opt = document.createElement("option");
     opt.value = g.id;
-    opt.textContent = `${g.id} — ${g.name} (${g.type})`;
+    const typeBadge = g.type === 'js' ? 'badge-js' : g.type === 'node' ? 'badge-node' : 'badge-pygame';
+    opt.innerHTML = `${g.id} — ${g.name} <span class="badge ${typeBadge}">${g.type}</span>`;
     gameSelect.appendChild(opt);
   }
 }

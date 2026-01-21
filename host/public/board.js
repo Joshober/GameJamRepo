@@ -1,6 +1,16 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { assetLoader, ASSET_PATHS } from './assets/assetLoader.js';
+
+// Handle import errors gracefully
+let assetLoaderAvailable = true;
+try {
+  // Asset loader is imported above
+} catch (e) {
+  console.warn('Asset loader not available, using fallbacks');
+  assetLoaderAvailable = false;
+}
 
 // Game state
 let boardState = {
@@ -28,6 +38,8 @@ let scene, camera, renderer, controls;
 let playerPieces = [];
 let spaceMeshes = [];
 let diceMesh = null;
+let loadedAssets = {};
+let assetsLoaded = false;
 
 // WebSocket connection
 const ws = new WebSocket(`ws://${location.host}`);
@@ -35,15 +47,88 @@ const ws = new WebSocket(`ws://${location.host}`);
 // Initialize
 init();
 
-function init() {
+async function init() {
   setupThreeJS();
+  setupUI();
+  setupWebSocket();
+  
+  // Show loading indicator
+  showLoadingIndicator();
+  
+  // Try to load assets
+  await loadAssets();
+  
+  // Create board and pieces (will use assets if loaded, fallback otherwise)
   createBoard();
   createPlayerPieces();
   createDice();
   setupLighting();
-  setupUI();
-  setupWebSocket();
+  
+  // Hide loading indicator
+  hideLoadingIndicator();
+  
   animate();
+}
+
+function showLoadingIndicator() {
+  const loading = document.getElementById('loading');
+  if (loading) {
+    loading.classList.remove('hidden');
+    const progressEl = document.getElementById('loading-progress');
+    if (progressEl) progressEl.textContent = '0%';
+  }
+  
+  if (assetLoaderAvailable && assetLoader) {
+    assetLoader.setProgressCallback((loaded, total) => {
+      const percent = total > 0 ? Math.round((loaded / total) * 100) : 0;
+      const progressEl = document.getElementById('loading-progress');
+      if (progressEl) {
+        progressEl.textContent = `${percent}%`;
+      }
+    });
+  }
+}
+
+function hideLoadingIndicator() {
+  const loading = document.getElementById('loading');
+  if (loading) {
+    loading.style.opacity = '0';
+    loading.style.transition = 'opacity 0.5s';
+    setTimeout(() => {
+      loading.classList.add('hidden');
+      loading.style.opacity = '1';
+    }, 500);
+  }
+}
+
+async function loadAssets() {
+  if (!assetLoaderAvailable || !assetLoader) {
+    console.log('Asset loader not available, using procedural models');
+    assetsLoaded = false;
+    return;
+  }
+  
+  const assetList = [
+    { type: 'model', name: 'boardBase', path: ASSET_PATHS.boardBase },
+    { type: 'model', name: 'spaceMarker', path: ASSET_PATHS.spaceMarker },
+    { type: 'model', name: 'character1', path: ASSET_PATHS.character1 },
+    { type: 'model', name: 'character2', path: ASSET_PATHS.character2 },
+    { type: 'model', name: 'character3', path: ASSET_PATHS.character3 },
+    { type: 'model', name: 'character4', path: ASSET_PATHS.character4 },
+    { type: 'model', name: 'dice', path: ASSET_PATHS.dice },
+    { type: 'texture', name: 'boardWood', path: ASSET_PATHS.boardWood },
+    { type: 'texture', name: 'spaceNormal', path: ASSET_PATHS.spaceNormal },
+    { type: 'texture', name: 'spaceBonus', path: ASSET_PATHS.spaceBonus },
+  ];
+  
+  try {
+    loadedAssets = await assetLoader.loadAssets(assetList);
+    assetsLoaded = Object.keys(loadedAssets).length > 0;
+    console.log('Loaded assets:', Object.keys(loadedAssets));
+  } catch (error) {
+    console.warn('Some assets failed to load, using fallbacks:', error);
+    assetsLoaded = false;
+  }
 }
 
 function setupThreeJS() {
@@ -82,10 +167,20 @@ function setupThreeJS() {
 }
 
 function createBoard() {
+  // Try to use loaded board texture, otherwise use default
+  let boardTexture = null;
+  if (loadedAssets.boardWood) {
+    boardTexture = loadedAssets.boardWood;
+    boardTexture.wrapS = THREE.RepeatWrapping;
+    boardTexture.wrapT = THREE.RepeatWrapping;
+    boardTexture.repeat.set(4, 4);
+  }
+  
   // Create board base with better materials
   const boardGeometry = new THREE.PlaneGeometry(60, 60);
   const boardMaterial = new THREE.MeshStandardMaterial({
     color: 0x2d3561,
+    map: boardTexture,
     roughness: 0.8,
     metalness: 0.2,
     emissive: 0x1a1a2e,
@@ -95,6 +190,14 @@ function createBoard() {
   board.rotation.x = -Math.PI / 2;
   board.receiveShadow = true;
   scene.add(board);
+  
+  // Try to load board base model if available
+  if (loadedAssets.boardBase && loadedAssets.boardBase.scene) {
+    const boardModel = loadedAssets.boardBase.scene.clone();
+    boardModel.rotation.x = -Math.PI / 2;
+    boardModel.position.y = 0.1;
+    scene.add(boardModel);
+  }
 
   // Add decorative border
   const borderGeometry = new THREE.RingGeometry(28, 30, 64);
@@ -140,16 +243,41 @@ function createBoard() {
       position: pos
     });
 
-    // Create space mesh with enhanced visuals
-    const spaceGeometry = new THREE.CylinderGeometry(1.2, 1.2, 0.2, 16);
-    const spaceMaterial = new THREE.MeshStandardMaterial({
-      color: color,
-      emissive: color,
-      emissiveIntensity: spaceType === 'star' ? 0.8 : 0.3,
-      roughness: 0.7,
-      metalness: spaceType === 'star' ? 0.5 : 0.1
-    });
-    const spaceMesh = new THREE.Mesh(spaceGeometry, spaceMaterial);
+    // Try to use loaded space marker model, otherwise create procedural
+    let spaceMesh;
+    if (loadedAssets.spaceMarker && loadedAssets.spaceMarker.scene) {
+      spaceMesh = loadedAssets.spaceMarker.scene.clone();
+      spaceMesh.scale.set(1.2, 1.2, 1.2);
+      
+      // Apply color to materials
+      spaceMesh.traverse((child) => {
+        if (child.isMesh && child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach(mat => {
+              mat.color.setHex(color);
+              mat.emissive.setHex(color);
+              mat.emissiveIntensity = spaceType === 'star' ? 0.8 : 0.3;
+            });
+          } else {
+            child.material.color.setHex(color);
+            child.material.emissive.setHex(color);
+            child.material.emissiveIntensity = spaceType === 'star' ? 0.8 : 0.3;
+          }
+        }
+      });
+    } else {
+      // Fallback: Create space mesh with enhanced visuals
+      const spaceGeometry = new THREE.CylinderGeometry(1.2, 1.2, 0.2, 16);
+      const spaceMaterial = new THREE.MeshStandardMaterial({
+        color: color,
+        emissive: color,
+        emissiveIntensity: spaceType === 'star' ? 0.8 : 0.3,
+        roughness: 0.7,
+        metalness: spaceType === 'star' ? 0.5 : 0.1
+      });
+      spaceMesh = new THREE.Mesh(spaceGeometry, spaceMaterial);
+    }
+    
     spaceMesh.position.copy(pos);
     spaceMesh.castShadow = true;
     spaceMesh.receiveShadow = true;
@@ -176,35 +304,75 @@ function createBoard() {
 function createPlayerPieces() {
   playerPieces = [];
   const colors = [0xff0000, 0x0000ff, 0xffff00, 0x00ff00];
+  const characterKeys = ['character1', 'character2', 'character3', 'character4'];
   
   for (let i = 0; i < 4; i++) {
-    // Create player piece group for better visuals
-    const pieceGroup = new THREE.Group();
+    let pieceGroup;
     
-    // Main body (cone)
-    const geometry = new THREE.ConeGeometry(0.8, 2, 8);
-    const material = new THREE.MeshStandardMaterial({
-      color: colors[i],
-      emissive: colors[i],
-      emissiveIntensity: 0.5,
-      roughness: 0.5,
-      metalness: 0.3
-    });
-    const piece = new THREE.Mesh(geometry, material);
-    piece.castShadow = true;
-    pieceGroup.add(piece);
-    
-    // Add glow ring at base
-    const ringGeometry = new THREE.TorusGeometry(0.9, 0.1, 8, 16);
-    const ringMaterial = new THREE.MeshBasicMaterial({
-      color: colors[i],
-      transparent: true,
-      opacity: 0.6
-    });
-    const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.y = -1;
-    pieceGroup.add(ring);
+    // Try to use loaded character model
+    if (loadedAssets[characterKeys[i]] && loadedAssets[characterKeys[i]].scene) {
+      pieceGroup = loadedAssets[characterKeys[i]].scene.clone();
+      
+      // Apply player color to materials
+      pieceGroup.traverse((child) => {
+        if (child.isMesh && child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach(mat => {
+              mat.color.setHex(colors[i]);
+              mat.emissive.setHex(colors[i]);
+              mat.emissiveIntensity = 0.3;
+            });
+          } else {
+            child.material.color.setHex(colors[i]);
+            child.material.emissive.setHex(colors[i]);
+            child.material.emissiveIntensity = 0.3;
+          }
+          child.castShadow = true;
+        }
+      });
+      
+      // Scale appropriately
+      pieceGroup.scale.set(0.5, 0.5, 0.5);
+    } else {
+      // Fallback: Create player piece group for better visuals
+      pieceGroup = new THREE.Group();
+      
+      // Main body (improved cone with better shape)
+      const geometry = new THREE.ConeGeometry(0.8, 2, 8);
+      const material = new THREE.MeshStandardMaterial({
+        color: colors[i],
+        emissive: colors[i],
+        emissiveIntensity: 0.5,
+        roughness: 0.5,
+        metalness: 0.3
+      });
+      const piece = new THREE.Mesh(geometry, material);
+      piece.castShadow = true;
+      pieceGroup.add(piece);
+      
+      // Add glow ring at base
+      const ringGeometry = new THREE.TorusGeometry(0.9, 0.1, 8, 16);
+      const ringMaterial = new THREE.MeshBasicMaterial({
+        color: colors[i],
+        transparent: true,
+        opacity: 0.6
+      });
+      const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = -1;
+      pieceGroup.add(ring);
+      
+      // Add player number sphere on top
+      const numberGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+      const numberMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.9
+      });
+      const numberSphere = new THREE.Mesh(numberGeometry, numberMaterial);
+      numberSphere.position.y = 1.2;
+      pieceGroup.add(numberSphere);
+    }
     
     pieceGroup.position.copy(boardState.boardPath[0]);
     pieceGroup.position.y = 1.5;
@@ -214,17 +382,26 @@ function createPlayerPieces() {
 }
 
 function createDice() {
-  // Create simple dice (white cube with dots)
-  const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
-  const material = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 0.3,
-    metalness: 0.1
-  });
-  diceMesh = new THREE.Mesh(geometry, material);
-  diceMesh.position.set(0, 5, 0);
-  diceMesh.visible = false;
-  scene.add(diceMesh);
+  // Try to use loaded dice model
+  if (loadedAssets.dice && loadedAssets.dice.scene) {
+    diceMesh = loadedAssets.dice.scene.clone();
+    diceMesh.scale.set(1.5, 1.5, 1.5);
+    diceMesh.position.set(0, 5, 0);
+    diceMesh.visible = false;
+    scene.add(diceMesh);
+  } else {
+    // Fallback: Create simple dice (white cube with dots)
+    const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+    const material = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.3,
+      metalness: 0.1
+    });
+    diceMesh = new THREE.Mesh(geometry, material);
+    diceMesh.position.set(0, 5, 0);
+    diceMesh.visible = false;
+    scene.add(diceMesh);
+  }
 }
 
 function setupLighting() {
@@ -403,17 +580,39 @@ async function rollDice() {
   boardState.gamePhase = 'rolling';
   updateUI();
   
-  // Animate dice
-  diceMesh.visible = true;
-  diceMesh.position.set(0, 5, 0);
+  // Add shake animation to button
+  const rollBtn = document.getElementById('roll-dice-btn');
+  rollBtn.classList.add('animate-shake');
+  setTimeout(() => rollBtn.classList.remove('animate-shake'), 500);
   
-  // Roll animation
+  // Animate dice with enhanced physics
+  diceMesh.visible = true;
+  diceMesh.position.set(0, 8, 0);
+  diceMesh.rotation.set(0, 0, 0);
+  
+  // Roll animation with physics-like movement
   const rollDuration = 2000;
   const startTime = Date.now();
+  let velocity = { x: 0.3, y: 0.3, z: 0.3 };
+  let position = { y: 8 };
+  
   const rollInterval = setInterval(() => {
-    diceMesh.rotation.x += 0.2;
-    diceMesh.rotation.y += 0.2;
-    diceMesh.rotation.z += 0.2;
+    const elapsed = Date.now() - startTime;
+    const progress = elapsed / rollDuration;
+    
+    // Rotate dice
+    diceMesh.rotation.x += velocity.x;
+    diceMesh.rotation.y += velocity.y;
+    diceMesh.rotation.z += velocity.z;
+    
+    // Bounce effect
+    position.y = 8 - Math.sin(progress * Math.PI * 4) * 2;
+    diceMesh.position.y = position.y;
+    
+    // Decelerate
+    velocity.x *= 0.98;
+    velocity.y *= 0.98;
+    velocity.z *= 0.98;
   }, 16);
   
   // Get random result
@@ -421,13 +620,76 @@ async function rollDice() {
   
   setTimeout(() => {
     clearInterval(rollInterval);
+    // Settle dice
+    diceMesh.position.y = 5;
+    diceMesh.rotation.set(
+      Math.random() * Math.PI,
+      Math.random() * Math.PI,
+      Math.random() * Math.PI
+    );
     showDiceResult(result);
+    
+    // Create confetti effect
+    createConfetti();
     
     // Move player
     setTimeout(() => {
       movePlayer(result);
     }, 1500);
   }, rollDuration);
+}
+
+function createConfetti() {
+  // Create colorful particle confetti
+  const colors = [0xff0000, 0x0000ff, 0xffff00, 0x00ff00, 0xff00ff];
+  const particleCount = 30;
+  
+  for (let i = 0; i < particleCount; i++) {
+    const geometry = new THREE.SphereGeometry(0.1, 8, 8);
+    const material = new THREE.MeshBasicMaterial({
+      color: colors[Math.floor(Math.random() * colors.length)],
+      transparent: true,
+      opacity: 1
+    });
+    const particle = new THREE.Mesh(geometry, material);
+    
+    const angle = (i / particleCount) * Math.PI * 2;
+    const radius = 3;
+    particle.position.set(
+      Math.cos(angle) * radius,
+      5 + Math.random() * 2,
+      Math.sin(angle) * radius
+    );
+    
+    const velocity = new THREE.Vector3(
+      (Math.random() - 0.5) * 0.3,
+      Math.random() * 0.5 + 0.5,
+      (Math.random() - 0.5) * 0.3
+    );
+    
+    scene.add(particle);
+    
+    // Animate particle
+    let frame = 0;
+    const animate = () => {
+      frame++;
+      particle.position.add(velocity);
+      particle.position.y -= 0.05;
+      particle.rotation.x += 0.1;
+      particle.rotation.y += 0.1;
+      particle.material.opacity -= 0.02;
+      velocity.multiplyScalar(0.95);
+      
+      if (frame < 60 && particle.material.opacity > 0) {
+        requestAnimationFrame(animate);
+      } else {
+        scene.remove(particle);
+        particle.geometry.dispose();
+        particle.material.dispose();
+      }
+    };
+    animate();
+  }
 }
 
 function showDiceResult(value) {
@@ -459,15 +721,23 @@ async function movePlayer(spaces) {
     const start = boardState.boardPath[startPos];
     const end = boardState.boardPath[currentPlayer.position];
     
-    for (let frame = 0; frame < 10; frame++) {
-      const t = frame / 10;
-      piece.position.lerpVectors(start, end, t);
-      piece.position.y = 1.5 + Math.sin(t * Math.PI) * 0.5; // Jump animation
+    for (let frame = 0; frame < 15; frame++) {
+      const t = frame / 15;
+      const easedT = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // Ease in-out
+      piece.position.lerpVectors(start, end, easedT);
+      piece.position.y = 1.5 + Math.sin(t * Math.PI) * 0.8; // Enhanced jump animation
+      
+      // Add rotation during movement
+      piece.rotation.y += 0.1;
+      
       updateBoardVisuals();
-      await new Promise(resolve => setTimeout(resolve, 30));
+      await new Promise(resolve => setTimeout(resolve, 40));
     }
     
-    // Create particle effect on landing
+    // Reset rotation
+    piece.rotation.y = 0;
+    
+    // Create enhanced particle effect on landing
     createLandingParticles(end);
   }
   
