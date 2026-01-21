@@ -283,8 +283,10 @@ function createBoard() {
             });
           } else {
             child.material.color.setHex(color);
-            child.material.emissive.setHex(color);
-            child.material.emissiveIntensity = spaceType === 'star' ? 0.8 : 0.3;
+            if (child.material.emissive) {
+              child.material.emissive.setHex(color);
+              child.material.emissiveIntensity = spaceType === 'star' ? 0.8 : 0.3;
+            }
           }
         }
       });

@@ -1,29 +1,11 @@
 FROM node:20-slim
 
-# Install unzip for extracting dice textures
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    unzip \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 COPY package.json ./
 RUN npm install
 
 COPY server.js ./
 COPY public ./public
-
-# Create asset directories
-RUN mkdir -p public/assets/models/board \
-    public/assets/models/characters \
-    public/assets/models/dice \
-    public/assets/textures
-
-# Extract assets from repository (fast - no downloads needed!)
-# Assets are stored as tar.gz files in the repo
-RUN if [ -f public/assets/extract-assets.sh ]; then \
-    chmod +x public/assets/extract-assets.sh && \
-    public/assets/extract-assets.sh; \
-    fi
 
 # Generate procedural GLTF assets if no assets found
 # This ensures we always have valid GLTF files to load

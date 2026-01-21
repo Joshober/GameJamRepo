@@ -30,3 +30,6 @@ Thumbs.db
 dist/
 build/
 *.egg-info/
+
+# Temporary asset downloads
+host/public/assets/downloads/

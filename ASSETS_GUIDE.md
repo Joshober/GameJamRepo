@@ -2,6 +2,8 @@
 
 This guide lists all the free, professional-quality assets you can use to make the board game look incredible.
 
+**For project-specific asset documentation, see [host/public/assets/ASSETS.md](host/public/assets/ASSETS.md)**
+
 ## 🎨 3D Models & Game Pieces
 
 ### Kenney.nl (kenney.nl/assets) - **RECOMMENDED #1**
