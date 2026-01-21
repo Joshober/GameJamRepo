@@ -1,0 +1,7 @@
+{
+  "id": "mg-YYY",
+  "name": "Pygame Template",
+  "type": "pygame",
+  "players": 1,
+  "entry": "main.py"
+}

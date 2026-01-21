@@ -1,0 +1,76 @@
+name: PR Guard
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  folder-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine changed files
+        id: diff
+        run: |
+          git fetch origin ${{ github.base_ref }} --depth=1
+          git diff --name-only origin/${{ github.base_ref }}...HEAD > changed.txt
+          cat changed.txt
+
+      - name: Validate minigame structure
+        run: |
+          python - <<'PY'
+          import json, os, sys
+
+          # allowed files: must be under minigames/<folder>/...
+          # (You can relax this to allow README edits, etc.)
+          changed = [l.strip() for l in open("changed.txt") if l.strip()]
+          if not changed:
+            print("No changes.")
+            sys.exit(0)
+
+          # Find which minigame folder is being modified
+          mg_folders = set()
+          for f in changed:
+            parts = f.split("/")
+            if len(parts) >= 2 and parts[0] == "minigames" and not parts[1].startswith("_"):
+              mg_folders.add(parts[1])
+
+          # If they touched non-minigame paths, fail
+          non_mg = [f for f in changed if not f.startswith("minigames/")]
+          if non_mg:
+            print("❌ You edited files outside minigames/:")
+            for f in non_mg: print(" -", f)
+            sys.exit(1)
+
+          if len(mg_folders) != 1:
+            print("❌ PR must modify exactly ONE minigame folder under minigames/<your-game>/")
+            print("Detected folders:", sorted(mg_folders))
+            sys.exit(1)
+
+          folder = next(iter(mg_folders))
+          manifest = f"minigames/{folder}/manifest.json"
+          if not os.path.exists(manifest):
+            print("❌ Missing manifest.json:", manifest)
+            sys.exit(1)
+
+          m = json.load(open(manifest, "r", encoding="utf-8"))
+          required = ["id","name","type","entry"]
+          missing = [k for k in required if k not in m]
+          if missing:
+            print("❌ manifest.json missing fields:", missing)
+            sys.exit(1)
+
+          if m["type"] not in ("js","node","pygame"):
+            print("❌ type must be 'js', 'node', or 'pygame'")
+            sys.exit(1)
+
+          entry_path = f"minigames/{folder}/{m['entry']}"
+          if not os.path.exists(entry_path):
+            print("❌ entry file not found:", entry_path)
+            sys.exit(1)
+
+          print("✅ PR structure looks good. Folder:", folder)
+          PY

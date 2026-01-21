@@ -1,0 +1,7 @@
+{
+  "name": "node-minigame-template",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Template for Node.js minigames",
+  "main": "main.js"
+}

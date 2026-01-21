@@ -1,0 +1,7 @@
+{
+  "id": "mg-YYY",
+  "name": "Node.js Template",
+  "type": "node",
+  "players": 1,
+  "entry": "main.js"
+}

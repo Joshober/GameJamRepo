@@ -1,0 +1,24 @@
+services:
+  host:
+    build:
+      context: ./host
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./:/repo
+    environment:
+      - REPO_ROOT=/repo
+      - RUNNER_URL=http://runner:5001
+    depends_on:
+      - runner
+
+  runner:
+    build:
+      context: ./runner
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./:/repo
+    environment:
+      - REPO_ROOT=/repo
+      - DISPLAY=:99
