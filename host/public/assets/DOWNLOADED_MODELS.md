@@ -2,6 +2,31 @@
 
 ## Sources Found
 
+### Free3D.com (https://free3d.com/3d-models/dice) ⭐ RECOMMENDED
+**Why we should use this:**
+- Large collection of free dice models
+- Multiple formats available (OBJ, FBX, GLTF, GLB)
+- Good quality models
+- Free for commercial use (check individual licenses)
+
+**Issue:**
+- Has bot protection/CAPTCHA that blocks automated downloads
+- Requires manual download through browser
+
+**Manual Download Steps:**
+1. Visit https://free3d.com/3d-models/dice
+2. Browse and select a dice model you like
+3. Click "Download" (may require account signup - free)
+4. Choose GLB or GLTF format if available
+5. If only OBJ/FBX available, convert using Blender:
+   - Import: File → Import → OBJ/FBX
+   - Export: File → Export → glTF 2.0 → glTF Binary (.glb)
+6. Save to `host/public/assets/models/dice/dice.glb`
+
+**Recommended Models:**
+- Search for "dice" and filter by "Free" and "GLB" format
+- Look for models with "CC0" or "Free for Commercial Use" licenses
+
 ### Filer.dev (https://www.filer.dev/3d-models)
 Found multiple free dice models:
 - `dice.glb` (0.49MB) - Main dice model

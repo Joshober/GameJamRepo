@@ -49,6 +49,22 @@
 - Format: JPG/PNG
 - License: CC0 (Public Domain)
 
+## 🎲 Dice Models
+
+### Free3D.com ⭐ BEST SOURCE
+**Direct Link:** https://free3d.com/3d-models/dice
+- Large collection of free dice models
+- Formats: OBJ, FBX, GLTF, GLB
+- License: Varies (check individual models - many are free for commercial use)
+- **Note**: Requires manual download (has bot protection)
+- **Tip**: Filter by "Free" and "GLB" format for easiest integration
+
+### Filer.dev
+**Direct Link:** https://www.filer.dev/3d-models/1?search=dice
+- Multiple free dice models in GLB format
+- Direct download links (when blob storage is active)
+- License: CC0/Free Standard
+
 ## 🎭 Character Models (Alternative Sources)
 
 ### Sketchfab (CC0 Filter)
