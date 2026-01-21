@@ -18,7 +18,13 @@ echo "=========================================="
 if [ -f "$CHARACTERS_TAR" ]; then
     echo "Extracting character models from archive..."
     cd "$ASSETS_DIR/models"
-    tar -xzf characters.tar.gz -C characters/ 2>/dev/null || true
+    # Extract preserving directory structure
+    tar -xzf characters.tar.gz 2>/dev/null || true
+    # If files are in characters/ subdirectory, move them up
+    if [ -d "characters/characters" ]; then
+        mv characters/characters/* characters/ 2>/dev/null || true
+        rmdir characters/characters 2>/dev/null || true
+    fi
     echo "✓ Character models extracted"
 fi
 
