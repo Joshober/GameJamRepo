@@ -1,0 +1,213 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
+  <title>Game Controller</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: system-ui, sans-serif; 
+      background: #1a1a1a;
+      color: #fff;
+      overflow: hidden;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      padding: 20px;
+    }
+    .status {
+      text-align: center;
+      padding: 15px;
+      background: #2a2a2a;
+      border-radius: 12px;
+      margin-bottom: 20px;
+    }
+    .status.connected { background: #2a5a2a; }
+    .status.joined { background: #2a2a5a; }
+    .player-select {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .player-btn {
+      padding: 20px;
+      background: #333;
+      border: 2px solid #555;
+      border-radius: 12px;
+      color: #fff;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .player-btn:active { transform: scale(0.95); }
+    .player-btn.available { background: #2a5a2a; border-color: #4a8a4a; }
+    .player-btn.joined { background: #2a2a5a; border-color: #4a4a8a; }
+    .controls {
+      flex: 1;
+      display: grid;
+      grid-template-areas:
+        ". up ."
+        "left center right"
+        ". down ."
+        ". action .";
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: 1fr 1fr 1fr 1fr;
+      gap: 10px;
+      max-width: 400px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    .btn {
+      background: #333;
+      border: 2px solid #555;
+      border-radius: 12px;
+      color: #fff;
+      font-size: 24px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:active, .btn.pressed {
+      background: #4a4a4a;
+      border-color: #777;
+      transform: scale(0.95);
+    }
+    .btn-up { grid-area: up; }
+    .btn-down { grid-area: down; }
+    .btn-left { grid-area: left; }
+    .btn-right { grid-area: right; }
+    .btn-action { 
+      grid-area: action; 
+      background: #5a2a2a;
+      border-color: #8a4a4a;
+    }
+    .btn-action:active, .btn-action.pressed {
+      background: #7a3a3a;
+      border-color: #aa6a6a;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="status" class="status">
+      Connecting...
+    </div>
+    
+    <div id="playerSelect" class="player-select">
+      <button class="player-btn" data-player="1">Player 1<br/><small>WASD+Space</small></button>
+      <button class="player-btn" data-player="2">Player 2<br/><small>Arrows+Enter</small></button>
+      <button class="player-btn" data-player="3">Player 3<br/><small>IJKL+U</small></button>
+      <button class="player-btn" data-player="4">Player 4<br/><small>TFGH+R</small></button>
+    </div>
+    
+    <div id="controls" class="controls hidden">
+      <button class="btn btn-up" data-button="up">↑</button>
+      <button class="btn btn-left" data-button="left">←</button>
+      <button class="btn btn-right" data-button="right">→</button>
+      <button class="btn btn-down" data-button="down">↓</button>
+      <button class="btn btn-action" data-button="action">●</button>
+    </div>
+  </div>
+  
+  <script>
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}?mobile=true`);
+    
+    let currentPlayer = null;
+    const statusEl = document.getElementById("status");
+    const playerSelectEl = document.getElementById("playerSelect");
+    const controlsEl = document.getElementById("controls");
+    const buttons = {};
+    
+    // Initialize button tracking
+    document.querySelectorAll('.btn').forEach(btn => {
+      const button = btn.dataset.button;
+      buttons[button] = { element: btn, pressed: false };
+      
+      // Touch events
+      btn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        sendControl(button, true);
+      });
+      btn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        sendControl(button, false);
+      });
+      btn.addEventListener('touchcancel', (e) => {
+        e.preventDefault();
+        sendControl(button, false);
+      });
+      
+      // Mouse events (for testing)
+      btn.addEventListener('mousedown', () => sendControl(button, true));
+      btn.addEventListener('mouseup', () => sendControl(button, false));
+      btn.addEventListener('mouseleave', () => sendControl(button, false));
+    });
+    
+    // Player selection
+    document.querySelectorAll('.player-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const player = parseInt(btn.dataset.player);
+        ws.send(JSON.stringify({ type: "JOIN", player }));
+      });
+    });
+    
+    function sendControl(button, pressed) {
+      if (!currentPlayer) return;
+      
+      buttons[button].pressed = pressed;
+      buttons[button].element.classList.toggle('pressed', pressed);
+      
+      ws.send(JSON.stringify({
+        type: "CONTROL",
+        button: button,
+        pressed: pressed
+      }));
+    }
+    
+    ws.onopen = () => {
+      statusEl.textContent = "Connected! Select your player slot.";
+      statusEl.classList.add("connected");
+    };
+    
+    ws.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      
+      if (msg.type === "JOINED") {
+        currentPlayer = msg.player;
+        statusEl.textContent = `Player ${currentPlayer} - Ready!`;
+        statusEl.classList.add("joined");
+        playerSelectEl.classList.add("hidden");
+        controlsEl.classList.remove("hidden");
+      } else if (msg.type === "JOIN_FAILED") {
+        statusEl.textContent = `Failed: ${msg.error}`;
+        statusEl.classList.remove("connected", "joined");
+      } else if (msg.type === "START_JS") {
+        statusEl.textContent = `Player ${currentPlayer} - Game Active!`;
+      }
+    };
+    
+    ws.onerror = () => {
+      statusEl.textContent = "Connection error. Refresh to retry.";
+      statusEl.classList.remove("connected", "joined");
+    };
+    
+    ws.onclose = () => {
+      statusEl.textContent = "Disconnected. Refresh to reconnect.";
+      statusEl.classList.remove("connected", "joined");
+    };
+  </script>
+</body>
+</html>

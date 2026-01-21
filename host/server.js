@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { spawn } from "child_process";
 import express from "express";
 import { WebSocketServer } from "ws";
+import QRCode from "qrcode";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -214,32 +215,153 @@ const server = app.listen(8080, () => {
   console.log("Host running on http://localhost:8080");
 });
 
-// WebSockets for real-time UI + receiving JS results
+// Mobile controller tracking
+const mobileControllers = new Map(); // playerNum -> Set of WebSocket connections
+const controllerAssignments = new Map(); // ws -> playerNum
+
+// WebSockets for real-time UI + receiving JS results + mobile controllers
 const wss = new WebSocketServer({ server });
 const clients = new Set();
 
-wss.on("connection", (ws) => {
-  clients.add(ws);
-  ws.send(JSON.stringify({ type: "STATE", payload: state }));
-
-  ws.on("message", (msg) => {
-    try {
-      const data = JSON.parse(msg.toString());
-      if (data.type === "RESULT") {
-        // JS minigame sends {scores:[..], winner:..}
-        applyResult(data.payload);
-        state.lastResult = { gameId: data.payload?.gameId ?? "js", result: data.payload };
-        broadcast({ type: "STATE", payload: state });
+wss.on("connection", (ws, req) => {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const isMobile = url.searchParams.get("mobile") === "true";
+  
+  if (isMobile) {
+    // Mobile controller connection
+    ws.on("message", (msg) => {
+      try {
+        const data = JSON.parse(msg.toString());
+        if (data.type === "JOIN") {
+          // Player wants to join a slot
+          const requestedPlayer = data.player || null;
+          let assignedPlayer = null;
+          
+          // Find available slot
+          if (requestedPlayer && requestedPlayer >= 1 && requestedPlayer <= 4) {
+            // Check if slot is available (less than 2 controllers per slot)
+            const existing = mobileControllers.get(requestedPlayer) || new Set();
+            if (existing.size < 2) {
+              assignedPlayer = requestedPlayer;
+            }
+          }
+          
+          // If requested slot not available, find first available
+          if (!assignedPlayer) {
+            for (let p = 1; p <= 4; p++) {
+              const existing = mobileControllers.get(p) || new Set();
+              if (existing.size < 2) {
+                assignedPlayer = p;
+                break;
+              }
+            }
+          }
+          
+          if (assignedPlayer) {
+            if (!mobileControllers.has(assignedPlayer)) {
+              mobileControllers.set(assignedPlayer, new Set());
+            }
+            mobileControllers.get(assignedPlayer).add(ws);
+            controllerAssignments.set(ws, assignedPlayer);
+            ws.send(JSON.stringify({ 
+              type: "JOINED", 
+              player: assignedPlayer,
+              controls: getControlMapping(assignedPlayer)
+            }));
+            broadcast({ type: "CONTROLLER_JOINED", player: assignedPlayer });
+          } else {
+            ws.send(JSON.stringify({ type: "JOIN_FAILED", error: "All slots full" }));
+          }
+        } else if (data.type === "CONTROL") {
+          // Forward control event to game iframe
+          const playerNum = controllerAssignments.get(ws);
+          if (playerNum) {
+            // Broadcast control event to all clients (game iframe will pick it up)
+            broadcast({ 
+              type: "MOBILE_CONTROL", 
+              player: playerNum,
+              button: data.button,
+              pressed: data.pressed
+            });
+          }
+        }
+      } catch {}
+    });
+    
+    ws.on("close", () => {
+      const playerNum = controllerAssignments.get(ws);
+      if (playerNum) {
+        const controllers = mobileControllers.get(playerNum);
+        if (controllers) {
+          controllers.delete(ws);
+          if (controllers.size === 0) {
+            mobileControllers.delete(playerNum);
+          }
+        }
+        controllerAssignments.delete(ws);
+        broadcast({ type: "CONTROLLER_LEFT", player: playerNum });
       }
-    } catch {}
-  });
+    });
+  } else {
+    // Regular client (host UI or game iframe)
+    clients.add(ws);
+    ws.send(JSON.stringify({ type: "STATE", payload: state }));
 
-  ws.on("close", () => clients.delete(ws));
+    ws.on("message", (msg) => {
+      try {
+        const data = JSON.parse(msg.toString());
+        if (data.type === "RESULT") {
+          // JS minigame sends {scores:[..], winner:..}
+          applyResult(data.payload);
+          state.lastResult = { gameId: data.payload?.gameId ?? "js", result: data.payload };
+          broadcast({ type: "STATE", payload: state });
+        }
+      } catch {}
+    });
+
+    ws.on("close", () => clients.delete(ws));
+  }
 });
+
+function getControlMapping(playerNum) {
+  const mappings = {
+    1: { up: "W", down: "S", left: "A", right: "D", action: "Space" },
+    2: { up: "↑", down: "↓", left: "←", right: "→", action: "Enter" },
+    3: { up: "I", down: "K", left: "J", right: "L", action: "U" },
+    4: { up: "T", down: "G", left: "F", right: "H", action: "R" }
+  };
+  return mappings[playerNum] || {};
+}
 
 function broadcast(obj) {
   const s = JSON.stringify(obj);
   for (const ws of clients) {
     try { ws.send(s); } catch {}
   }
+  // Also broadcast to mobile controllers
+  for (const controllers of mobileControllers.values()) {
+    for (const ws of controllers) {
+      try { ws.send(s); } catch {}
+    }
+  }
 }
+
+// QR code generation endpoint
+app.get("/api/qrcode", async (req, res) => {
+  try {
+    const protocol = req.protocol;
+    const host = req.get("host");
+    const controllerUrl = `${protocol}://${host}/controller`;
+    
+    const qrCodeDataUrl = await QRCode.toDataURL(controllerUrl, {
+      errorCorrectionLevel: "M",
+      type: "image/png",
+      width: 400,
+      margin: 2
+    });
+    
+    res.json({ url: controllerUrl, qrCode: qrCodeDataUrl });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});

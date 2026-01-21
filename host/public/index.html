@@ -37,24 +37,37 @@
     </div>
   </div>
 
-  <div class="card" style="margin-top:16px;">
-    <h2>Controls (Auto-Mapped)</h2>
-    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; margin-top:8px;">
-      <div>
-        <strong>Player 1</strong><br/>
-        <small>WASD + Space</small>
+  <div class="row" style="margin-top:16px;">
+    <div class="card">
+      <h2>Mobile Controllers</h2>
+      <p>Scan QR code to connect your phone as a controller</p>
+      <div id="qrcodeContainer" style="text-align:center; margin:16px 0;">
+        <img id="qrcode" src="" alt="QR Code" style="max-width:200px; border:2px solid #ddd; border-radius:8px;"/>
       </div>
-      <div>
-        <strong>Player 2</strong><br/>
-        <small>Arrow Keys + Enter</small>
+      <div id="controllerStatus" style="margin-top:12px; font-size:12px; color:#666;">
+        Loading QR code...
       </div>
-      <div>
-        <strong>Player 3</strong><br/>
-        <small>IJKL + U</small>
-      </div>
-      <div>
-        <strong>Player 4</strong><br/>
-        <small>TFGH + R</small>
+    </div>
+    
+    <div class="card">
+      <h2>Controls (Auto-Mapped)</h2>
+      <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; margin-top:8px;">
+        <div>
+          <strong>Player 1</strong><br/>
+          <small>WASD + Space</small>
+        </div>
+        <div>
+          <strong>Player 2</strong><br/>
+          <small>Arrow Keys + Enter</small>
+        </div>
+        <div>
+          <strong>Player 3</strong><br/>
+          <small>IJKL + U</small>
+        </div>
+        <div>
+          <strong>Player 4</strong><br/>
+          <small>TFGH + R</small>
+        </div>
       </div>
     </div>
   </div>

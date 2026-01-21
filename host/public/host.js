@@ -2,10 +2,28 @@ const scoresEl = document.getElementById("scores");
 const lastEl = document.getElementById("last");
 const gameSelect = document.getElementById("gameSelect");
 const frame = document.getElementById("frame");
+const qrcodeEl = document.getElementById("qrcode");
+const controllerStatusEl = document.getElementById("controllerStatus");
 
 const ws = new WebSocket(`ws://${location.host}`);
 
 let currentState = null;
+const connectedControllers = new Set();
+
+// Load QR code on page load
+async function loadQRCode() {
+  try {
+    const resp = await fetch("/api/qrcode");
+    const data = await resp.json();
+    qrcodeEl.src = data.qrCode;
+    controllerStatusEl.textContent = `Scan to connect: ${data.url}`;
+  } catch (e) {
+    controllerStatusEl.textContent = "Failed to load QR code";
+    console.error(e);
+  }
+}
+
+loadQRCode();
 
 ws.onmessage = (e) => {
   const msg = JSON.parse(e.data);
@@ -20,7 +38,36 @@ ws.onmessage = (e) => {
     // For now: we load from /minigame?path=... (implemented below as a quick static mapping approach)
     frame.src = `/minigame/${game.folder}/index.html?gameId=${encodeURIComponent(game.id)}`;
   }
+  if (msg.type === "MOBILE_CONTROL") {
+    // Forward mobile control event to game iframe
+    if (frame.contentWindow) {
+      frame.contentWindow.postMessage({
+        type: "MOBILE_CONTROL",
+        player: msg.player,
+        button: msg.button,
+        pressed: msg.pressed
+      }, "*");
+    }
+  }
+  if (msg.type === "CONTROLLER_JOINED") {
+    connectedControllers.add(msg.player);
+    updateControllerStatus();
+  }
+  if (msg.type === "CONTROLLER_LEFT") {
+    connectedControllers.delete(msg.player);
+    updateControllerStatus();
+  }
 };
+
+function updateControllerStatus() {
+  const count = connectedControllers.size;
+  if (count === 0) {
+    controllerStatusEl.textContent = "No controllers connected";
+  } else {
+    const players = Array.from(connectedControllers).sort().join(", ");
+    controllerStatusEl.textContent = `${count} controller(s) connected: Player ${players}`;
+  }
+}
 
 function render() {
   if (!currentState) return;

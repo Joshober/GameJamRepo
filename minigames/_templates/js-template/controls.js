@@ -72,6 +72,7 @@ class PlayerControls {
   constructor() {
     this.keys = {};
     this.pressed = {};
+    this.mobilePressed = {}; // Track mobile controller input
     
     // Initialize all player keys
     for (let p = 1; p <= 4; p++) {
@@ -80,6 +81,14 @@ class PlayerControls {
         this.keys[keyCode] = p;
         this.pressed[keyCode] = false;
       }
+      // Initialize mobile control tracking
+      this.mobilePressed[p] = {
+        up: false,
+        down: false,
+        left: false,
+        right: false,
+        action: false
+      };
     }
     
     window.addEventListener('keydown', (e) => {
@@ -93,14 +102,31 @@ class PlayerControls {
         this.pressed[e.code] = false;
       }
     });
+    
+    // Listen for mobile control events from parent window
+    window.addEventListener('message', (e) => {
+      if (e.data && e.data.type === 'MOBILE_CONTROL') {
+        const { player, button, pressed } = e.data;
+        if (player >= 1 && player <= 4 && this.mobilePressed[player]) {
+          this.mobilePressed[player][button] = pressed;
+        }
+      }
+    });
   }
   
   // Check if a player's button is currently pressed
   isPressed(playerNum, button) {
+    // Check keyboard input
     const player = CONTROLS[`p${playerNum}`];
-    if (!player) return false;
-    const keyCode = player[button];
-    return this.pressed[keyCode] || false;
+    if (player) {
+      const keyCode = player[button];
+      if (this.pressed[keyCode]) return true;
+    }
+    // Check mobile controller input
+    if (this.mobilePressed[playerNum] && this.mobilePressed[playerNum][button]) {
+      return true;
+    }
+    return false;
   }
   
   // Check if a player's button was just pressed (for one-time actions)
