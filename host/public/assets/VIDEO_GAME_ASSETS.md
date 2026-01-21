@@ -98,10 +98,20 @@ If you get DAE, BLEND, or OBJ files:
 
 ## Current Status
 
-- ✅ Character models: Have (Kenney Blocky Characters)
-- ⚠️ Dice model: Need to download (voxel style recommended)
-- ⚠️ Board tiles: Need to download (hexagon kit recommended)
-- ⚠️ Board textures: Need to download (Poly Haven recommended)
+- ✅ Character models: Have (Kenney Blocky Characters - 3D GLB files)
+- ⚠️ Dice model: Need to download (voxel style recommended - 3D GLTF/OBJ)
+- ⚠️ Board tiles: Need to download (hexagon kit recommended - 3D GLTF)
+- ⚠️ Board textures: Need to download (Poly Haven recommended - 2D JPG/PNG textures)
+
+## ✅ 3D Verification
+
+**All recommended assets are confirmed 3D models:**
+- Kytric Voxel Pack: GLTF, OBJ, VOX formats (all 3D)
+- Kenney Hexagon Kit: GLTF format (3D)
+- OpenGameArt Dice: DAE, BLEND formats (3D)
+- Poly Haven: GLTF, FBX formats (3D)
+
+See [`3D_ASSETS_VERIFICATION.md`](3D_ASSETS_VERIFICATION.md) for detailed verification.
 
 ---
 
