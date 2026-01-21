@@ -5,8 +5,12 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  folder-guard:
+  validate-structure:
     runs-on: ubuntu-latest
+    outputs:
+      folder: ${{ steps.validate.outputs.folder }}
+      type: ${{ steps.validate.outputs.type }}
+      entry: ${{ steps.validate.outputs.entry }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,6 +24,7 @@ jobs:
           cat changed.txt
 
       - name: Validate minigame structure
+        id: validate
         run: |
           python - <<'PY'
           import json, os, sys
@@ -72,5 +77,252 @@ jobs:
             print("❌ entry file not found:", entry_path)
             sys.exit(1)
 
+          # Validate scores array in manifest if present
+          if "players" in m:
+            if not isinstance(m["players"], int) or m["players"] < 1 or m["players"] > 4:
+              print("❌ players must be an integer between 1 and 4")
+              sys.exit(1)
+
           print("✅ PR structure looks good. Folder:", folder)
+          with open(os.environ.get("GITHUB_OUTPUT", "/dev/stdout"), "a") as f:
+            f.write(f"folder={folder}\n")
+            f.write(f"type={m['type']}\n")
+            f.write(f"entry={m['entry']}\n")
           PY
+
+  test-game:
+    runs-on: ubuntu-latest
+    needs: validate-structure
+    if: needs.validate-structure.outcome == 'success'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Test JS Game
+        if: needs.validate-structure.outputs.type == 'js'
+        env:
+          GAME_FOLDER: ${{ needs.validate-structure.outputs.folder }}
+          GAME_ENTRY: ${{ needs.validate-structure.outputs.entry }}
+        run: |
+          python - <<'PY'
+          import os, json, sys
+          
+          folder = os.environ.get("GAME_FOLDER")
+          entry = os.environ.get("GAME_ENTRY")
+          
+          if not folder or not entry:
+            print("❌ Missing game folder or entry")
+            sys.exit(1)
+          
+          entry_path = f"minigames/{folder}/{entry}"
+          if not os.path.exists(entry_path):
+            print(f"❌ Entry file not found: {entry_path}")
+            sys.exit(1)
+          
+          # Check if it's an HTML file
+          if not entry_path.endswith(".html"):
+            print(f"❌ JS games must have .html entry file, got: {entry_path}")
+            sys.exit(1)
+          
+          # Read HTML and check for basic structure
+          with open(entry_path, "r", encoding="utf-8") as f:
+            html = f.read()
+          
+          # Check for script tag (game logic)
+          if "<script" not in html:
+            print("⚠️  Warning: No <script> tag found in HTML")
+          
+          # Check if controls.js is referenced (recommended)
+          if "controls.js" not in html:
+            print("⚠️  Warning: controls.js not included. Consider adding it for standard controls.")
+          
+          # Check for postMessage usage (recommended pattern)
+          if "postMessage" not in html.lower():
+            print("⚠️  Warning: No postMessage found. Game should send RESULT via postMessage.")
+          
+          print("✅ JS game structure looks valid")
+          PY
+
+      - name: Set up Node.js
+        if: needs.validate-structure.outputs.type == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Test Node.js Game
+        if: needs.validate-structure.outputs.type == 'node'
+        env:
+          GAME_FOLDER: ${{ needs.validate-structure.outputs.folder }}
+          GAME_ENTRY: ${{ needs.validate-structure.outputs.entry }}
+        run: |
+          python - <<'PY'
+          import os, subprocess, json, sys, time
+          
+          folder = os.environ.get("GAME_FOLDER")
+          entry = os.environ.get("GAME_ENTRY")
+          
+          if not folder or not entry:
+            print("❌ Missing game folder or entry")
+            sys.exit(1)
+          
+          entry_path = f"minigames/{folder}/{entry}"
+          if not os.path.exists(entry_path):
+            print(f"❌ Entry file not found: {entry_path}")
+            sys.exit(1)
+          
+          # Check if package.json exists and install deps if needed
+          game_dir = f"minigames/{folder}"
+          package_json = f"{game_dir}/package.json"
+          if os.path.exists(package_json):
+            print("📦 Installing dependencies from package.json...")
+            subprocess.run(["npm", "install"], cwd=game_dir, check=True)
+          
+          # Run the game with timeout
+          print(f"🎮 Running Node.js game: {entry_path}")
+          try:
+            proc = subprocess.run(
+              ["node", entry_path, "--players", "4", "--seed", "123", "--mode", "test"],
+              cwd=game_dir,
+              capture_output=True,
+              text=True,
+              timeout=30
+            )
+            
+            stdout = proc.stdout or ""
+            stderr = proc.stderr or ""
+            
+            # Look for RESULT line
+            result_found = False
+            for line in stdout.splitlines():
+              if line.startswith("RESULT:"):
+                result_found = True
+                result_json = line[7:].strip()
+                try:
+                  result = json.loads(result_json)
+                  # Validate result structure
+                  if "scores" not in result:
+                    print("❌ RESULT missing 'scores' field")
+                    sys.exit(1)
+                  if not isinstance(result["scores"], list) or len(result["scores"]) != 4:
+                    print(f"❌ RESULT scores must be array of 4 numbers, got: {result['scores']}")
+                    sys.exit(1)
+                  print("✅ Game executed successfully and returned valid RESULT")
+                  print(f"   Scores: {result['scores']}")
+                  break
+                except json.JSONDecodeError as e:
+                  print(f"❌ Invalid RESULT JSON: {e}")
+                  print(f"   Raw: {result_json}")
+                  sys.exit(1)
+            
+            if not result_found:
+              print("❌ No RESULT line found in stdout")
+              print(f"   stdout: {stdout[-500:]}")
+              print(f"   stderr: {stderr[-500:]}")
+              sys.exit(1)
+            
+            if proc.returncode != 0:
+              print(f"⚠️  Game exited with code {proc.returncode}")
+              print(f"   stderr: {stderr[-500:]}")
+          
+          except subprocess.TimeoutExpired:
+            print("❌ Game execution timed out after 30 seconds")
+            sys.exit(1)
+          except Exception as e:
+            print(f"❌ Error running game: {e}")
+            sys.exit(1)
+          PY
+
+      - name: Install Python dependencies
+        if: needs.validate-structure.outputs.type == 'pygame'
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Start Docker services
+        if: needs.validate-structure.outputs.type == 'pygame'
+        run: |
+          docker compose up -d runner
+          echo "Waiting for runner to be ready..."
+          timeout 30 bash -c 'until curl -f http://localhost:5001/run 2>/dev/null; do sleep 1; done' || true
+
+      - name: Test Pygame Game
+        if: needs.validate-structure.outputs.type == 'pygame'
+        env:
+          GAME_FOLDER: ${{ needs.validate-structure.outputs.folder }}
+          GAME_ENTRY: ${{ needs.validate-structure.outputs.entry }}
+        run: |
+          python - <<'PY'
+          import os, json, sys, time, requests
+          
+          folder = os.environ.get("GAME_FOLDER")
+          entry = os.environ.get("GAME_ENTRY")
+          
+          if not folder or not entry:
+            print("❌ Missing game folder or entry")
+            sys.exit(1)
+          
+          entry_path = f"minigames/{folder}/{entry}"
+          if not os.path.exists(entry_path):
+            print(f"❌ Entry file not found: {entry_path}")
+            sys.exit(1)
+          
+          # Test via runner API
+          print(f"🎮 Testing pygame game via runner API: {entry_path}")
+          
+          # Wait a bit for runner to be fully ready
+          time.sleep(2)
+          
+          try:
+            response = requests.post(
+              "http://localhost:5001/run",
+              json={
+                "entry": f"minigames/{folder}/{entry}",
+                "players": 4,
+                "seed": 123
+              },
+              timeout=60
+            )
+            
+            if response.status_code != 200:
+              print(f"❌ Runner API returned status {response.status_code}")
+              print(f"   Response: {response.text}")
+              sys.exit(1)
+            
+            data = response.json()
+            
+            if not data.get("ok"):
+              print(f"❌ Game execution failed: {data.get('error', 'Unknown error')}")
+              if "stdout" in data:
+                print(f"   stdout: {data['stdout'][-500:]}")
+              if "stderr" in data:
+                print(f"   stderr: {data['stderr'][-500:]}")
+              sys.exit(1)
+            
+            result = data.get("result", {})
+            
+            # Validate result structure
+            if "scores" not in result:
+              print("❌ RESULT missing 'scores' field")
+              sys.exit(1)
+            
+            if not isinstance(result["scores"], list) or len(result["scores"]) != 4:
+              print(f"❌ RESULT scores must be array of 4 numbers, got: {result['scores']}")
+              sys.exit(1)
+            
+            print("✅ Game executed successfully and returned valid RESULT")
+            print(f"   Scores: {result['scores']}")
+            
+          except requests.exceptions.RequestException as e:
+            print(f"❌ Error calling runner API: {e}")
+            sys.exit(1)
+          except Exception as e:
+            print(f"❌ Unexpected error: {e}")
+            sys.exit(1)
+          PY
+
+      - name: Cleanup Docker
+        if: always() && needs.validate-structure.outputs.type == 'pygame'
+        run: |
+          docker compose down -v
