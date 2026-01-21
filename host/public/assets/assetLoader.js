@@ -50,9 +50,8 @@ class AssetLoader {
 
     // Start loading
     const promise = new Promise((resolve, reject) => {
-      // Set texture path resolver - extract base path from model path
+      // Extract base path for texture resolution (relative paths in GLTF files)
       const basePath = path.substring(0, path.lastIndexOf('/') + 1);
-      this.loader.setPath(basePath);
       
       // Handle texture loading errors gracefully
       const originalOnError = this.loader.manager.onError;
@@ -65,8 +64,14 @@ class AssetLoader {
         if (originalOnError) originalOnError(url);
       };
       
+      // Set path for resolving relative texture paths in GLTF files
+      this.loader.setPath(basePath);
+      
+      // Extract just the filename for loading (since we set the base path)
+      const filename = path.substring(path.lastIndexOf('/') + 1);
+      
       this.loader.load(
-        path,
+        filename,
         (gltf) => {
           this.cache.set(path, gltf);
           this.loadingPromises.delete(path);
