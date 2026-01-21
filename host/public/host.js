@@ -1,4 +1,6 @@
 const scoresEl = document.getElementById("scores");
+const prizesEl = document.getElementById("prizes");
+const prizeBreakdownEl = document.getElementById("prizeBreakdown");
 const lastEl = document.getElementById("last");
 const gameSelect = document.getElementById("gameSelect");
 const frame = document.getElementById("frame");
@@ -57,6 +59,9 @@ ws.onmessage = (e) => {
     connectedControllers.delete(msg.player);
     updateControllerStatus();
   }
+  if (msg.type === "PRIZES_AWARDED") {
+    showPrizeBreakdown(msg.payload);
+  }
 };
 
 function updateControllerStatus() {
@@ -71,12 +76,50 @@ function updateControllerStatus() {
 
 function render() {
   if (!currentState) return;
+  
+  // Render scores
   scoresEl.innerHTML = currentState.players
-    .map((p,i)=>`<div><b>${p}</b>: ${currentState.scores[i]}</div>`)
+    .map((p,i)=>`<div><b>${p}</b>: ${currentState.scores[i]} pts</div>`)
     .join("");
+  
+  // Render coins and stars
+  prizesEl.innerHTML = currentState.players
+    .map((p,i)=>`
+      <div class="prize-item">
+        <b>${p}</b>: 
+        <span class="coin">🪙 ${currentState.coins[i] || 0}</span>
+        <span class="star">⭐ ${currentState.stars[i] || 0}</span>
+      </div>
+    `)
+    .join("");
+  
   lastEl.textContent = currentState.lastResult
-    ? `Last: ${JSON.stringify(currentState.lastResult)}`
+    ? `Last game: ${currentState.lastResult.gameId || "unknown"}`
     : "Last: (none)";
+}
+
+function showPrizeBreakdown(data) {
+  const { gameId, prizes } = data;
+  if (!prizes || !prizes.breakdown) return;
+  
+  prizeBreakdownEl.style.display = "block";
+  prizeBreakdownEl.innerHTML = `
+    <strong>🏆 Prize Breakdown (${gameId})</strong>
+    ${prizes.breakdown.map(p => `
+      <div style="margin-top:8px; padding:8px; background:white; border-radius:6px;">
+        <span class="rank-badge rank-${p.rank}">${p.rank}</span>
+        <strong>Player ${p.player + 1}</strong>: 
+        Score: ${p.score} | 
+        <span class="coin">+${p.coins} 🪙</span>
+        ${p.stars > 0 ? `<span class="star">+${p.stars} ⭐</span>` : ''}
+      </div>
+    `).join("")}
+  `;
+  
+  // Auto-hide after 10 seconds
+  setTimeout(() => {
+    prizeBreakdownEl.style.display = "none";
+  }, 10000);
 }
 
 async function refreshGames() {

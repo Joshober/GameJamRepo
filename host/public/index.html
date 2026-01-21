@@ -12,6 +12,14 @@
     select { padding:10px; border-radius:10px; }
     iframe { width:100%; height:520px; border:1px solid #ddd; border-radius:12px; }
     code { background:#f6f6f6; padding:2px 6px; border-radius:6px; }
+    .prize-item { display:flex; align-items:center; gap:8px; margin:4px 0; }
+    .coin { color:#d4af37; font-weight:bold; }
+    .star { color:#ffd700; font-weight:bold; }
+    .rank-badge { display:inline-block; width:24px; height:24px; border-radius:50%; text-align:center; line-height:24px; font-weight:bold; font-size:12px; }
+    .rank-1 { background:#ffd700; color:#000; }
+    .rank-2 { background:#c0c0c0; color:#000; }
+    .rank-3 { background:#cd7f32; color:#fff; }
+    .rank-4 { background:#888; color:#fff; }
   </style>
 </head>
 <body>
@@ -21,8 +29,10 @@
     <div class="card">
       <h2>Scoreboard</h2>
       <div id="scores"></div>
-      <p id="last"></p>
-      <button id="resetBtn">Reset Scores</button>
+      <div id="prizes" style="margin-top:16px; padding-top:16px; border-top:1px solid #ddd;"></div>
+      <div id="prizeBreakdown" style="margin-top:12px; padding:12px; background:#f9f9f9; border-radius:8px; display:none;"></div>
+      <p id="last" style="margin-top:12px; font-size:12px; color:#666;"></p>
+      <button id="resetBtn">Reset All</button>
     </div>
 
     <div class="card">

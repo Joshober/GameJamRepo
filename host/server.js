@@ -134,9 +134,12 @@ function runNodeGame(entryPath, args) {
 
 let state = {
   players: ["P1","P2","P3","P4"],
-  scores: [0,0,0,0],
+  scores: [0,0,0,0],  // Total points/score
+  coins: [0,0,0,0],   // Coins earned
+  stars: [0,0,0,0],   // Stars earned (bonus currency)
   games: [],
-  lastResult: null
+  lastResult: null,
+  prizeHistory: []    // History of prize distributions
 };
 
 let currentGame = null; // Track currently running game
@@ -155,7 +158,10 @@ app.get("/api/state", (req, res) => res.json(state));
 
 app.post("/api/reset", (req, res) => {
   state.scores = [0,0,0,0];
+  state.coins = [0,0,0,0];
+  state.stars = [0,0,0,0];
   state.lastResult = null;
+  state.prizeHistory = [];
   broadcast({ type: "STATE", payload: state });
   res.json({ ok: true });
 });
@@ -201,10 +207,11 @@ app.post("/api/run/:gameId", async (req, res) => {
       return res.status(400).json({ ok: false, error: "Unknown type" });
     }
 
-    applyResult(result);
-    state.lastResult = { gameId, result };
+    const prizes = applyResult(result);
+    state.lastResult = { gameId, result, prizes };
     broadcast({ type: "STATE", payload: state });
-    res.json({ ok: true, mode: game.type, game, result });
+    broadcast({ type: "PRIZES_AWARDED", payload: { gameId, prizes } });
+    res.json({ ok: true, mode: game.type, game, result, prizes });
 
   } catch (e) {
     currentGame = null;
@@ -212,10 +219,76 @@ app.post("/api/run/:gameId", async (req, res) => {
   }
 });
 
+function calculatePrizes(scores) {
+  // Calculate ranking based on scores
+  const players = scores.map((score, idx) => ({ player: idx, score: Number(score) || 0 }));
+  players.sort((a, b) => b.score - a.score);
+  
+  // Assign rankings (handle ties)
+  const rankings = new Array(4);
+  let currentRank = 1;
+  for (let i = 0; i < players.length; i++) {
+    if (i > 0 && players[i].score < players[i-1].score) {
+      currentRank = i + 1;
+    }
+    rankings[players[i].player] = currentRank;
+  }
+  
+  // Prize distribution (Mario Party style)
+  const prizeCoins = [10, 5, 3, 1];  // Coins for 1st, 2nd, 3rd, 4th
+  const prizeStars = [1, 0, 0, 0];   // Stars for 1st place only
+  
+  const coins = new Array(4).fill(0);
+  const stars = new Array(4).fill(0);
+  
+  for (let i = 0; i < 4; i++) {
+    const rank = rankings[i];
+    coins[i] = prizeCoins[rank - 1] || 0;
+    stars[i] = prizeStars[rank - 1] || 0;
+  }
+  
+  return {
+    rankings,
+    coins,
+    stars,
+    breakdown: players.map((p, idx) => ({
+      player: p.player,
+      score: p.score,
+      rank: rankings[p.player],
+      coins: coins[p.player],
+      stars: stars[p.player]
+    }))
+  };
+}
+
 function applyResult(result) {
-  const add = result?.scores;
-  if (!Array.isArray(add) || add.length !== 4) return;
-  state.scores = state.scores.map((s, i) => s + (Number(add[i]) || 0));
+  const gameScores = result?.scores;
+  if (!Array.isArray(gameScores) || gameScores.length !== 4) return;
+  
+  // Calculate prizes based on game scores
+  const prizes = calculatePrizes(gameScores);
+  
+  // Add coins and stars to player totals
+  state.coins = state.coins.map((c, i) => c + prizes.coins[i]);
+  state.stars = state.stars.map((s, i) => s + prizes.stars[i]);
+  
+  // Add raw scores to total scores
+  state.scores = state.scores.map((s, i) => s + (Number(gameScores[i]) || 0));
+  
+  // Store prize history
+  state.prizeHistory.unshift({
+    gameId: result?.gameId || "unknown",
+    timestamp: Date.now(),
+    scores: gameScores,
+    prizes: prizes
+  });
+  
+  // Keep only last 10 games in history
+  if (state.prizeHistory.length > 10) {
+    state.prizeHistory.pop();
+  }
+  
+  return prizes;
 }
 
 const server = app.listen(8080, () => {
@@ -330,12 +403,13 @@ wss.on("connection", (ws, req) => {
     ws.on("message", (msg) => {
       try {
         const data = JSON.parse(msg.toString());
-        if (data.type === "RESULT") {
-          // JS minigame sends {scores:[..], winner:..}
-          applyResult(data.payload);
-          state.lastResult = { gameId: data.payload?.gameId ?? "js", result: data.payload };
-          broadcast({ type: "STATE", payload: state });
-        }
+      if (data.type === "RESULT") {
+        // JS minigame sends {scores:[..], winner:..}
+        const prizes = applyResult(data.payload);
+        state.lastResult = { gameId: data.payload?.gameId ?? "js", result: data.payload, prizes };
+        broadcast({ type: "STATE", payload: state });
+        broadcast({ type: "PRIZES_AWARDED", payload: { gameId: data.payload?.gameId ?? "js", prizes } });
+      }
       } catch {}
     });
 

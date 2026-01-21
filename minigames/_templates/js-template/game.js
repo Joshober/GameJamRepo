@@ -20,9 +20,18 @@ function gameLoop() {
 }
 
 document.getElementById("finish").onclick = () => {
-  const scores = [0,0,0,0].map(()=>Math.floor(Math.random()*11));
+  // Example: Generate random scores for each player
+  // In a real game, calculate scores based on player performance
+  const scores = [0,0,0,0].map(()=>Math.floor(Math.random()*100));
+  const winner = scores.indexOf(Math.max(...scores));
+  
+  // Send result - host will automatically calculate prizes (coins/stars) based on rankings
   window.parent.postMessage({
     type: "RESULT",
-    payload: { gameId, scores, winner: scores.indexOf(Math.max(...scores)) }
+    payload: { 
+      gameId, 
+      scores,  // Array of 4 scores - higher is better
+      winner   // Optional: index of winner
+    }
   }, "*");
 };
