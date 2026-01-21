@@ -89,30 +89,30 @@ if [ -f "$DICE_MODELS_ZIP" ]; then
     echo "✓ Dice models extracted (DAE format - may need conversion to GLB)"
 fi
 
-# Extract board tiles from zip if it exists
-BOARD_TILES_ZIP="$ASSETS_DIR/models/board_tiles.zip"
-if [ -f "$BOARD_TILES_ZIP" ]; then
-    echo "Extracting board tiles from archive..."
-    mkdir -p "$ASSETS_DIR/models/board" # Ensure target directory exists
+# Extract UI pack from zip if it exists
+UI_PACK_ZIP="$ASSETS_DIR/models/ui_pack.zip"
+if [ -f "$UI_PACK_ZIP" ]; then
+    echo "Extracting UI pack from archive..."
+    mkdir -p "$ASSETS_DIR/ui" # Ensure target directory exists
     if command -v unzip >/dev/null 2>&1; then
-        unzip -q -o "$BOARD_TILES_ZIP" -d "$ASSETS_DIR/models/board" 2>/dev/null || true
+        unzip -q -o "$UI_PACK_ZIP" -d "$ASSETS_DIR/ui" 2>/dev/null || true
     elif command -v python3 >/dev/null 2>&1; then
-        python3 -c "import zipfile; zipfile.ZipFile('$BOARD_TILES_ZIP').extractall('$ASSETS_DIR/models/board')" 2>/dev/null || true
+        python3 -c "import zipfile; zipfile.ZipFile('$UI_PACK_ZIP').extractall('$ASSETS_DIR/ui')" 2>/dev/null || true
     fi
-    echo "✓ Board tiles extracted"
+    echo "✓ UI pack extracted"
 fi
 
-# Extract dice models from zip if it exists
-DICE_MODELS_ZIP="$ASSETS_DIR/models/dice_models.zip"
-if [ -f "$DICE_MODELS_ZIP" ]; then
-    echo "Extracting dice models from archive..."
-    mkdir -p "$DICE_DIR" # Ensure target directory exists
+# Extract audio pack from zip if it exists
+AUDIO_PACK_ZIP="$ASSETS_DIR/models/audio_pack.zip"
+if [ -f "$AUDIO_PACK_ZIP" ]; then
+    echo "Extracting audio pack from archive..."
+    mkdir -p "$ASSETS_DIR/audio" # Ensure target directory exists
     if command -v unzip >/dev/null 2>&1; then
-        unzip -q -o "$DICE_MODELS_ZIP" -d "$DICE_DIR" 2>/dev/null || true
+        unzip -q -o "$AUDIO_PACK_ZIP" -d "$ASSETS_DIR/audio" 2>/dev/null || true
     elif command -v python3 >/dev/null 2>&1; then
-        python3 -c "import zipfile; zipfile.ZipFile('$DICE_MODELS_ZIP').extractall('$DICE_DIR')" 2>/dev/null || true
+        python3 -c "import zipfile; zipfile.ZipFile('$AUDIO_PACK_ZIP').extractall('$ASSETS_DIR/audio')" 2>/dev/null || true
     fi
-    echo "✓ Dice models extracted (DAE format - may need conversion to GLB)"
+    echo "✓ Audio pack extracted"
 fi
 
 # Check what we have
