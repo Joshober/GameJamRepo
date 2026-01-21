@@ -13,9 +13,17 @@
 - **Status**: ✅ Committed to repository
 
 ### Dice Model
-- **Status**: ⚠️ Not downloaded (URLs failed)
+- **Status**: ⚠️ 3D model not downloaded (URLs failed)
 - **Fallback**: Procedural GLTF dice is automatically generated
 - **Works**: ✅ Yes, procedural dice works fine
+
+### Dice Textures (NEW!)
+- **File**: `host/public/assets/models/dice_textures.zip`
+- **Contains**: 24 PNG dice face images (red & white, with/without borders)
+- **Source**: Kenney Board Game Pack (2D assets)
+- **Status**: ✅ Committed to repository
+- **Location**: `host/public/assets/textures/dice/`
+- **Usage**: Can be applied as textures to the 3D dice model or used as 2D sprites
 
 ## What Was Downloaded with Playwright
 
