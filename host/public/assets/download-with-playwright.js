@@ -347,12 +347,24 @@ async function downloadFromKenney(browser) {
                       { from: 'character-d.glb', to: 'character_4.glb' }
                     ];
                     
+                    console.log(`  Renaming character files in: ${charDir}`);
                     for (const mapping of charMap) {
                       const fromPath = path.join(charDir, mapping.from);
                       const toPath = path.join(charDir, mapping.to);
-                      if (fs.existsSync(fromPath)) {
-                        fs.copyFileSync(fromPath, toPath);
-                        console.log(`  Renamed: ${mapping.from} → ${mapping.to}`);
+                      try {
+                        if (fs.existsSync(fromPath)) {
+                          fs.copyFileSync(fromPath, toPath);
+                          // Verify copy succeeded
+                          if (fs.existsSync(toPath) && fs.statSync(toPath).size > 0) {
+                            console.log(`  ✓ Renamed: ${mapping.from} → ${mapping.to} (${fs.statSync(toPath).size} bytes)`);
+                          } else {
+                            console.log(`  ✗ Copy failed: ${mapping.from} → ${mapping.to}`);
+                          }
+                        } else {
+                          console.log(`  ⚠ Source not found: ${fromPath}`);
+                        }
+                      } catch (error) {
+                        console.log(`  ✗ Error renaming ${mapping.from}: ${error.message}`);
                       }
                     }
                   }
@@ -402,12 +414,24 @@ async function downloadFromKenney(browser) {
                       { from: 'character-d.glb', to: 'character_4.glb' }
                     ];
                     
+                    console.log(`  Renaming character files in: ${charDir}`);
                     for (const mapping of charMap) {
                       const fromPath = path.join(charDir, mapping.from);
                       const toPath = path.join(charDir, mapping.to);
-                      if (fs.existsSync(fromPath)) {
-                        fs.copyFileSync(fromPath, toPath);
-                        console.log(`  Renamed: ${mapping.from} → ${mapping.to}`);
+                      try {
+                        if (fs.existsSync(fromPath)) {
+                          fs.copyFileSync(fromPath, toPath);
+                          // Verify copy succeeded
+                          if (fs.existsSync(toPath) && fs.statSync(toPath).size > 0) {
+                            console.log(`  ✓ Renamed: ${mapping.from} → ${mapping.to} (${fs.statSync(toPath).size} bytes)`);
+                          } else {
+                            console.log(`  ✗ Copy failed: ${mapping.from} → ${mapping.to}`);
+                          }
+                        } else {
+                          console.log(`  ⚠ Source not found: ${fromPath}`);
+                        }
+                      } catch (error) {
+                        console.log(`  ✗ Error renaming ${mapping.from}: ${error.message}`);
                       }
                     }
                   }
