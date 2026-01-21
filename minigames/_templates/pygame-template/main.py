@@ -5,6 +5,15 @@ import time
 
 import pygame
 
+# Import mobile controls helper (if available)
+try:
+    from mobile_controls import get_player_mobile_input
+    MOBILE_CONTROLS_AVAILABLE = True
+except ImportError:
+    MOBILE_CONTROLS_AVAILABLE = False
+    def get_player_mobile_input(player_num):
+        return {'up': False, 'down': False, 'left': False, 'right': False, 'action': False}
+
 # Standard 4-player control mapping
 # Player 1: WASD + Space
 # Player 2: Arrow keys + Enter
@@ -78,9 +87,21 @@ def main():
 
         keys = pygame.key.get_pressed()
         
-        # Check all 4 players' action buttons
+        # Check all 4 players' action buttons (keyboard + mobile)
         for p in range(1, 5):
+            # Get keyboard input
             input_state = get_player_input(p, keys)
+            
+            # Get mobile controller input (if available)
+            if MOBILE_CONTROLS_AVAILABLE:
+                mobile_input = get_player_mobile_input(p)
+                # Merge mobile controls with keyboard (mobile takes precedence for action)
+                input_state['up'] = input_state['up'] or mobile_input['up']
+                input_state['down'] = input_state['down'] or mobile_input['down']
+                input_state['left'] = input_state['left'] or mobile_input['left']
+                input_state['right'] = input_state['right'] or mobile_input['right']
+                input_state['action'] = input_state['action'] or mobile_input['action']
+            
             if input_state['action']:
                 points[p-1] += 1
 

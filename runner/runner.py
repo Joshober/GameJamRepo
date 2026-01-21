@@ -1,10 +1,20 @@
 import json
 import os
 import subprocess
+import threading
+import time
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)  # Allow cross-origin requests from host
 REPO_ROOT = os.environ.get("REPO_ROOT", "/repo")
+
+# Shared control state for mobile controllers
+# Format: {player: {button: pressed}}
+control_state = {}
+control_lock = threading.Lock()
+control_state_file = "/tmp/pygame_controls.json"
 
 def run_pygame(entry_path: str, args: list[str]) -> dict:
     # Run python file, capture stdout, parse RESULT line
@@ -57,6 +67,31 @@ def run_pygame(entry_path: str, args: list[str]) -> dict:
 
     return {"ok": True, "result": payload}
 
+def update_control_state():
+    """Write control state to file for pygame games to read"""
+    with control_lock:
+        with open(control_state_file, "w") as f:
+            json.dump(control_state, f)
+
+@app.post("/control")
+def set_control():
+    """Receive control events from host (mobile controllers)"""
+    data = request.get_json(force=True)
+    player = data.get("player")
+    button = data.get("button")
+    pressed = data.get("pressed", False)
+    
+    if not player or not button:
+        return jsonify({"ok": False, "error": "Missing player or button"}), 400
+    
+    with control_lock:
+        if player not in control_state:
+            control_state[player] = {}
+        control_state[player][button] = pressed
+        update_control_state()
+    
+    return jsonify({"ok": True})
+
 @app.post("/run")
 def run_game():
     data = request.get_json(force=True)
@@ -71,8 +106,19 @@ def run_game():
     if not os.path.exists(entry_path):
         return jsonify({"ok": False, "error": f"Entry not found: {entry}"}), 404
 
+    # Clear control state before starting game
+    with control_lock:
+        control_state.clear()
+        update_control_state()
+
     args = ["--players", str(players), "--seed", str(seed), "--mode", "jam"]
     out = run_pygame(entry_path, args)
+    
+    # Clear control state after game ends
+    with control_lock:
+        control_state.clear()
+        update_control_state()
+    
     return jsonify(out), (200 if out.get("ok") else 500)
 
 if __name__ == "__main__":

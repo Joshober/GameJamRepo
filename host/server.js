@@ -139,6 +139,8 @@ let state = {
   lastResult: null
 };
 
+let currentGame = null; // Track currently running game
+
 state.games = listMinigames();
 
 app.use(express.static(path.join(__dirname, "public")));
@@ -165,6 +167,8 @@ app.post("/api/run/:gameId", async (req, res) => {
 
   try {
     let result;
+    currentGame = game; // Track running game for mobile controls
+    
     if (game.type === "pygame") {
       // call runner
       const resp = await fetch(`${RUNNER_URL}/run`, {
@@ -179,6 +183,7 @@ app.post("/api/run/:gameId", async (req, res) => {
       const data = await resp.json();
       if (!data.ok) throw new Error(data.error || "Runner failed");
       result = data.result;
+      currentGame = null; // Clear after game completes
     } else if (game.type === "node") {
       // run Node.js game via subprocess
       const entryPath = path.join(REPO_ROOT, game.entry);
@@ -192,6 +197,7 @@ app.post("/api/run/:gameId", async (req, res) => {
       broadcast({ type: "START_JS", payload: { game }});
       return res.json({ ok: true, mode: "js", game });
     } else {
+      currentGame = null;
       return res.status(400).json({ ok: false, error: "Unknown type" });
     }
 
@@ -201,6 +207,7 @@ app.post("/api/run/:gameId", async (req, res) => {
     res.json({ ok: true, mode: game.type, game, result });
 
   } catch (e) {
+    currentGame = null;
     res.status(500).json({ ok: false, error: String(e) });
   }
 });
@@ -273,16 +280,29 @@ wss.on("connection", (ws, req) => {
             ws.send(JSON.stringify({ type: "JOIN_FAILED", error: "All slots full" }));
           }
         } else if (data.type === "CONTROL") {
-          // Forward control event to game iframe
+          // Forward control event to game iframe (JS games) or runner (pygame games)
           const playerNum = controllerAssignments.get(ws);
           if (playerNum) {
-            // Broadcast control event to all clients (game iframe will pick it up)
-            broadcast({ 
-              type: "MOBILE_CONTROL", 
-              player: playerNum,
-              button: data.button,
-              pressed: data.pressed
-            });
+            if (currentGame && currentGame.type === "pygame") {
+              // Forward to runner for pygame games
+              fetch(`${RUNNER_URL}/control`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  player: playerNum,
+                  button: data.button,
+                  pressed: data.pressed
+                })
+              }).catch(err => console.error("Failed to forward control to runner:", err));
+            } else {
+              // Broadcast control event to all clients (JS game iframe will pick it up)
+              broadcast({ 
+                type: "MOBILE_CONTROL", 
+                player: playerNum,
+                button: data.button,
+                pressed: data.pressed
+              });
+            }
           }
         }
       } catch {}
