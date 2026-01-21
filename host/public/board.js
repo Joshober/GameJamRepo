@@ -688,8 +688,36 @@ function setupWebSocket() {
       boardState = msg.payload;
       updateBoardVisuals();
       updateUI();
-    } else if (msg.type === 'PRIZES_AWARDED' && boardState.gamePhase === 'minigame') {
-      // Minigame completed, update board state and continue
+    } else if (msg.type === 'PRIZES_AWARDED') {
+      // Minigame completed, prizes automatically awarded by server
+      // Update board state with new coins/stars
+      const prizes = msg.payload;
+      console.log('Prizes awarded:', prizes);
+      
+      // Sync coins and stars from main state (server already applied them)
+      fetch('/api/state')
+        .then(r => r.json())
+        .then(data => {
+          mainState.coins = data.coins || [0, 0, 0, 0];
+          mainState.stars = data.stars || [0, 0, 0, 0];
+          boardState.players.forEach((p, i) => {
+            p.coins = mainState.coins[i] || 0;
+            p.stars = mainState.stars[i] || 0;
+          });
+          updateScoreboard();
+          
+          // Show prize breakdown
+          if (prizes && prizes.breakdown) {
+            showPrizeBreakdown(prizes.breakdown);
+          }
+          
+          // Continue to next turn after showing prizes
+          if (boardState.gamePhase === 'minigame') {
+            setTimeout(() => {
+              nextTurn();
+            }, 4000);
+          }
+        });
       boardState.players.forEach((p, i) => {
         p.coins = mainState.coins[i] || 0;
         p.stars = mainState.stars[i] || 0;
@@ -1199,6 +1227,38 @@ function syncBoardState() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ state: boardState })
   });
+}
+
+function showPrizeBreakdown(breakdown) {
+  // Create or update prize breakdown display
+  let prizeEl = document.getElementById('prize-breakdown');
+  if (!prizeEl) {
+    prizeEl = document.createElement('div');
+    prizeEl.id = 'prize-breakdown';
+    prizeEl.className = 'prize-breakdown';
+    document.body.appendChild(prizeEl);
+  }
+  
+  prizeEl.innerHTML = `
+    <div class="prize-breakdown-content">
+      <h3>🎉 Minigame Results!</h3>
+      ${breakdown.map((p, i) => `
+        <div class="prize-item ${p.coins > 0 || p.stars > 0 ? 'winner' : ''}">
+          <span class="player-name">${boardState.players[i].name}</span>
+          ${p.coins > 0 ? `<span class="coin">+${p.coins} 🪙</span>` : ''}
+          ${p.stars > 0 ? `<span class="star">+${p.stars} ⭐</span>` : ''}
+          ${p.coins === 0 && p.stars === 0 ? '<span class="no-prize">No prize</span>' : ''}
+        </div>
+      `).join('')}
+    </div>
+  `;
+  
+  prizeEl.classList.remove('hidden');
+  
+  // Auto-hide after 4 seconds
+  setTimeout(() => {
+    prizeEl.classList.add('hidden');
+  }, 4000);
 }
 
 function onWindowResize() {
