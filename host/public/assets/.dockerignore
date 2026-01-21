@@ -1,0 +1,15 @@
+# Don't include large downloaded assets in Docker context
+# Assets will be downloaded during build or mounted via volume
+*.glb
+*.gltf
+*.fbx
+*.obj
+*.zip
+*.jpg
+*.png
+!README.md
+!DOWNLOAD_GUIDE.md
+!ASSET_LINKS.md
+!*.sh
+!*.js
+!*.md
