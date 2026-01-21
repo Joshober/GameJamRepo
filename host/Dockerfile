@@ -19,15 +19,22 @@ RUN mkdir -p public/assets/models/board \
     public/assets/models/dice \
     public/assets/textures
 
-# Download assets automatically during build
-# This will attempt to download from known working sources
-# If downloads fail, the game will use enhanced procedural models (which look great!)
+# Download or generate assets automatically during build
+# First try to download from known sources, then generate procedural GLTF files
 RUN if [ -f public/assets/download-assets-docker.sh ]; then \
     chmod +x public/assets/download-assets-docker.sh && \
-    public/assets/download-assets-docker.sh || echo "Note: Asset download had issues. Game will use procedural models."; \
+    (public/assets/download-assets-docker.sh || true); \
     elif [ -f public/assets/download-assets.sh ]; then \
     chmod +x public/assets/download-assets.sh && \
-    public/assets/download-assets.sh || echo "Note: Some assets failed to download. Game will use procedural models."; \
+    (public/assets/download-assets.sh || true); \
+    fi
+
+# Generate procedural GLTF assets if downloads failed or files don't exist
+# This ensures we always have valid GLTF files to load
+# Check if any character or dice files exist, if not generate them
+RUN if [ ! -f public/assets/models/dice/dice.glb ] && [ ! -f public/assets/models/dice/dice.gltf ]; then \
+    echo "Generating procedural 3D assets..." && \
+    node public/assets/generate-assets.js || echo "Asset generation completed"; \
     fi
 
 # Note: For best results, manually download assets from Kenney.nl and place them

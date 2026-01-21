@@ -108,6 +108,7 @@ async function loadAssets() {
     return;
   }
   
+  // Try .glb first, then .gltf as fallback
   const assetList = [
     { type: 'model', name: 'boardBase', path: ASSET_PATHS.boardBase },
     { type: 'model', name: 'spaceMarker', path: ASSET_PATHS.spaceMarker },
@@ -122,7 +123,32 @@ async function loadAssets() {
   ];
   
   try {
+    // Try primary paths (.glb)
     loadedAssets = await assetLoader.loadAssets(assetList);
+    
+    // Try fallback paths (.gltf) for assets that failed
+    const fallbackPaths = {
+      character1: ASSET_PATHS.character1Alt,
+      character2: ASSET_PATHS.character2Alt,
+      character3: ASSET_PATHS.character3Alt,
+      character4: ASSET_PATHS.character4Alt,
+      dice: ASSET_PATHS.diceAlt
+    };
+    
+    for (const [name, fallbackPath] of Object.entries(fallbackPaths)) {
+      if (!loadedAssets[name]) {
+        try {
+          const fallback = await assetLoader.loadModel(fallbackPath);
+          if (fallback) {
+            loadedAssets[name] = fallback;
+            console.log(`Loaded ${name} from fallback: ${fallbackPath}`);
+          }
+        } catch (e) {
+          // Fallback also failed, will use procedural model
+        }
+      }
+    }
+    
     assetsLoaded = Object.keys(loadedAssets).length > 0;
     console.log('Loaded assets:', Object.keys(loadedAssets));
   } catch (error) {

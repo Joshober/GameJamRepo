@@ -168,19 +168,25 @@ class AssetLoader {
 export const assetLoader = new AssetLoader();
 
 // Default asset paths (will be used if assets exist)
+// Supports both .glb and .gltf extensions
 export const ASSET_PATHS = {
   // Board assets
   boardBase: '/assets/models/board/board_base.glb',
   spaceMarker: '/assets/models/board/space_marker.glb',
   
-  // Character assets
+  // Character assets (try .glb first, then .gltf)
   character1: '/assets/models/characters/character_1.glb',
+  character1Alt: '/assets/models/characters/character_1.gltf',
   character2: '/assets/models/characters/character_2.glb',
+  character2Alt: '/assets/models/characters/character_2.gltf',
   character3: '/assets/models/characters/character_3.glb',
+  character3Alt: '/assets/models/characters/character_3.gltf',
   character4: '/assets/models/characters/character_4.glb',
+  character4Alt: '/assets/models/characters/character_4.gltf',
   
-  // Dice
+  // Dice (try .glb first, then .gltf)
   dice: '/assets/models/dice/dice.glb',
+  diceAlt: '/assets/models/dice/dice.gltf',
   
   // Textures
   boardWood: '/assets/textures/board_wood.jpg',
