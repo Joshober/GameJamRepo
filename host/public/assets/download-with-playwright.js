@@ -336,6 +336,27 @@ async function downloadFromKenney(browser) {
                 try {
                   console.log(`  Extracting ZIP file...`);
                   extractZip(result.path, ASSETS_DIR, asset.filterFiles);
+                  
+                  // Rename character files to match expected naming (character-a → character_1, etc.)
+                  if (asset.name === 'Blocky Characters') {
+                    const charDir = path.join(ASSETS_DIR, 'models/characters');
+                    const charMap = [
+                      { from: 'character-a.glb', to: 'character_1.glb' },
+                      { from: 'character-b.glb', to: 'character_2.glb' },
+                      { from: 'character-c.glb', to: 'character_3.glb' },
+                      { from: 'character-d.glb', to: 'character_4.glb' }
+                    ];
+                    
+                    for (const mapping of charMap) {
+                      const fromPath = path.join(charDir, mapping.from);
+                      const toPath = path.join(charDir, mapping.to);
+                      if (fs.existsSync(fromPath)) {
+                        fs.copyFileSync(fromPath, toPath);
+                        console.log(`  Renamed: ${mapping.from} → ${mapping.to}`);
+                      }
+                    }
+                  }
+                  
                   console.log(`✓ Extracted: ${asset.name}`);
                   successCount++;
                   
@@ -370,6 +391,27 @@ async function downloadFromKenney(browser) {
                 try {
                   console.log(`  Extracting ZIP file...`);
                   extractZip(filePath, ASSETS_DIR, asset.filterFiles);
+                  
+                  // Rename character files to match expected naming
+                  if (asset.name === 'Blocky Characters') {
+                    const charDir = path.join(ASSETS_DIR, 'models/characters');
+                    const charMap = [
+                      { from: 'character-a.glb', to: 'character_1.glb' },
+                      { from: 'character-b.glb', to: 'character_2.glb' },
+                      { from: 'character-c.glb', to: 'character_3.glb' },
+                      { from: 'character-d.glb', to: 'character_4.glb' }
+                    ];
+                    
+                    for (const mapping of charMap) {
+                      const fromPath = path.join(charDir, mapping.from);
+                      const toPath = path.join(charDir, mapping.to);
+                      if (fs.existsSync(fromPath)) {
+                        fs.copyFileSync(fromPath, toPath);
+                        console.log(`  Renamed: ${mapping.from} → ${mapping.to}`);
+                      }
+                    }
+                  }
+                  
                   console.log(`✓ Extracted: ${asset.name}`);
                   fs.unlinkSync(filePath);
                 } catch (error) {
