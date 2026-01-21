@@ -582,7 +582,7 @@ function handleSpaceEffect(space) {
       spaceDescEl.textContent = 'You earned 5 coins!';
       boardState.players[boardState.currentTurn].coins += 5;
       // Sync with main state
-      state.coins[boardState.currentTurn] = boardState.players[boardState.currentTurn].coins;
+      mainState.coins[boardState.currentTurn] = boardState.players[boardState.currentTurn].coins;
       syncBoardState();
       setTimeout(() => nextTurn(), 2000);
       break;
