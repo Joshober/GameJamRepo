@@ -33,3 +33,5 @@ build/
 
 # Temporary asset downloads
 host/public/assets/downloads/
+# Assets to move folder (temporary staging area)
+assetstomove/

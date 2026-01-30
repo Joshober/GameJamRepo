@@ -297,10 +297,24 @@ app.post("/api/run/:gameId", async (req, res) => {
   }
 });
 
-function calculatePrizes(scores) {
+function calculatePrizes(scores, winner = null) {
   // Calculate ranking based on scores
   const players = scores.map((score, idx) => ({ player: idx, score: Number(score) || 0 }));
-  players.sort((a, b) => b.score - a.score);
+  
+  // If winner is provided and valid, use it to determine 1st place
+  // Otherwise, calculate from highest score
+  if (winner !== null && winner >= 0 && winner < 4) {
+    // Winner field provided - use it to set 1st place
+    // Sort by score, but ensure winner is first
+    players.sort((a, b) => {
+      if (a.player === winner) return -1;
+      if (b.player === winner) return 1;
+      return b.score - a.score;
+    });
+  } else {
+    // No winner field or invalid - calculate from highest score
+    players.sort((a, b) => b.score - a.score);
+  }
   
   // Assign rankings (handle ties)
   const rankings = new Array(4);
@@ -329,6 +343,7 @@ function calculatePrizes(scores) {
     rankings,
     coins,
     stars,
+    winner: winner !== null && winner >= 0 && winner < 4 ? winner : players[0].player,
     breakdown: players.map((p, idx) => ({
       player: p.player,
       score: p.score,
@@ -343,8 +358,9 @@ function applyResult(result) {
   const gameScores = result?.scores;
   if (!Array.isArray(gameScores) || gameScores.length !== 4) return;
   
-  // Calculate prizes based on game scores
-  const prizes = calculatePrizes(gameScores);
+  // Calculate prizes based on game scores, using winner field if provided
+  const winner = result?.winner !== undefined ? Number(result.winner) : null;
+  const prizes = calculatePrizes(gameScores, winner);
   
   // Add coins and stars to player totals
   state.coins = state.coins.map((c, i) => c + prizes.coins[i]);

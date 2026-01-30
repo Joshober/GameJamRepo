@@ -222,4 +222,19 @@ export const ASSET_PATHS = {
   boardWood: '/assets/textures/board_wood.jpg',
   spaceNormal: '/assets/textures/space_normal.jpg',
   spaceBonus: '/assets/textures/space_bonus.jpg',
+  
+  // Game props and environmental assets
+  pipe: '/assets/models/pipe.glb',
+  shop: '/assets/models/shop.glb',
+  tree: '/assets/models/nature_pack/tree.glb',
+  rock: '/assets/models/nature_pack/rock.glb',
+  coin: '/assets/models/coin.glb',
+  starCoin: '/assets/models/star_coin.glb',
+  
+  // Game reference props
+  doomImp: '/assets/models/props/doom_imp.glb',
+  pacmanGhost: '/assets/models/props/pacman_ghost.glb',
+  tetrisBlock: '/assets/models/props/tetris_block.glb',
+  spaceInvader: '/assets/models/props/space_invader.glb',
+  arcadeCabinet: '/assets/models/props/arcade_cabinet.glb',
 };

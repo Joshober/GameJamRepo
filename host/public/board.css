@@ -297,6 +297,68 @@ body {
 
 #space-info p {
   color: var(--text-secondary);
+}
+
+/* Shop menu styles */
+#shop-menu {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+  min-width: 400px;
+  max-width: 500px;
+}
+
+#shop-menu h3 {
+  color: var(--mp-blue-light);
+  margin-bottom: 12px;
+  font-family: 'Fredoka One', cursive;
+  font-size: 24px;
+}
+
+.shop-item {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid var(--mp-blue);
+  border-radius: 12px;
+  padding: 16px;
+  margin: 12px 0;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.shop-item:hover:not(.disabled) {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: var(--mp-yellow);
+  transform: translateX(5px);
+}
+
+.shop-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.shop-item-name {
+  font-size: 20px;
+  font-weight: bold;
+  color: var(--mp-blue-light);
+  margin-bottom: 8px;
+}
+
+.shop-item-desc {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.shop-item-cost {
+  font-size: 18px;
+  color: var(--mp-yellow);
+  font-weight: bold;
+}
+
+#space-info p {
+  color: var(--text-secondary);
   font-size: 15px;
   line-height: 1.6;
 }

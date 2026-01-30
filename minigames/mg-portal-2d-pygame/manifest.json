@@ -1,0 +1,7 @@
+{
+  "id": "mg-portal-2d-pygame",
+  "name": "Portal 2D",
+  "type": "pygame",
+  "players": 4,
+  "entry": "main.py"
+}
