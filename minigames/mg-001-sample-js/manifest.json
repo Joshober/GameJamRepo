@@ -1,7 +1,0 @@
-{
-  "id": "mg-001",
-  "name": "Sample JS Button Masher",
-  "type": "js",
-  "players": 4,
-  "entry": "index.html"
-}
