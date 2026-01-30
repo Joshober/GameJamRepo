@@ -1,34 +1,45 @@
-# Shooter 4 jugadores Co-op (3D)
+Shooter 4 Players Co-op (3D)
 
-Minijuego de disparos 3D para **4 jugadores en equipo** contra oleadas de enemigos. Los jugadores pueden usar teclado en el PC o **conectarse desde el móvil por URL** para controlar su personaje.
+A 3D shooting mini-game for 4 players working as a team against waves of enemies. Players can use the keyboard on PC or connect from their phones via URL to control their character.
 
-## Cómo jugar
+How to Play
 
-1. **En el ordenador:** ejecuta el servidor para poder usar control desde móvil:
-   ```bash
-   cd minigames/mg-shooter-4p-3d
-   npm install
-   npm start
-   ```
-2. Abre en el navegador: **http://localhost:3847** (o la IP que muestre la consola).
-3. **En el móvil (misma WiFi):** abre la URL que aparece en la pantalla de inicio, por ejemplo:
-   - Jugador 1: `http://TU_IP:3847/controller?player=1`
-   - Jugador 2: `http://TU_IP:3847/controller?player=2`
-   - etc.
-     Sustituye `TU_IP` por la IP de tu ordenador (ej. 192.168.1.10).
+On the computer: run the server to enable mobile control:
 
-## Controles
+cd minigames/mg-shooter-4p-3d
+npm install
+npm start
 
-- **Teclado:** P1 WASD+Espacio · P2 Flechas+Enter · P3 IJKL+U · P4 TFGH+R
-- **Móvil:** D-pad + botón DISPARAR en la página del controlador.
 
-## Reglas
+Open in your browser: http://localhost:3847
+ (or the IP shown in the console).
 
-- Los 4 jugadores van **en equipo**. Hay que eliminar a los enemigos que aparecen por **oleadas**.
-- Los enemigos entran por los bordes del mapa y se acercan a los jugadores; si te tocan, pierdes vida.
-- Gana el equipo si superáis **5 oleadas** o si tenéis más kills cuando acaben los **2 minutos**.
-- Si un jugador muere, reaparece a los pocos segundos en su esquina.
+On your phone (same WiFi): open the URL shown on the start screen, for example:
 
-## Solo local (sin móvil)
+Player 1: http://YOUR_IP:3847/controller?player=1
 
-Puedes abrir `index.html` directamente en el navegador; entonces solo funcionarán los controles de teclado (y no la URL de móvil).
+Player 2: http://YOUR_IP:3847/controller?player=2
+
+etc.
+Replace YOUR_IP with your computer’s IP (e.g. 192.168.1.10).
+
+Controls
+
+Keyboard:
+P1: WASD + Space · P2: Arrow Keys + Enter · P3: IJKL + U · P4: TFGH + R
+
+Mobile: D-pad + SHOOT button on the controller page.
+
+Rules
+
+All 4 players are on the same team. You must eliminate enemies that spawn in waves.
+
+Enemies enter from the edges of the map and move toward the players; if they touch you, you lose health.
+
+The team wins if you survive 5 waves or have more kills when the 2-minute timer ends.
+
+If a player dies, they respawn after a few seconds in their corner.
+
+Local Only (No Mobile)
+
+You can open index.html directly in your browser; in that case, only keyboard controls will work (no mobile URL).
