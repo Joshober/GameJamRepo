@@ -1,0 +1,7 @@
+{
+  "id": "mg-shooter-4p-3d",
+  "name": "Shooter 4 jugadores (3D)",
+  "type": "js",
+  "players": 4,
+  "entry": "index.html"
+}

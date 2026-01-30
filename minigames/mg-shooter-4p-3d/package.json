@@ -1,0 +1,15 @@
+{
+  "name": "mg-shooter-4p-3d",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Shooter 4 jugadores co-op 3D con control desde móvil",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "qrcode": "^1.5.3",
+    "ws": "^8.14.2"
+  }
+}
