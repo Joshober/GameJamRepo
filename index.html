@@ -3,20 +3,26 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>JS Minigame</title>
+  <title>Coin Collector - Demo Game</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0; padding: 18px; }
-    .box { border: 1px solid #ddd; border-radius: 12px; padding: 16px; }
-    button { padding: 12px 14px; border-radius: 10px; border: 1px solid #ccc; cursor:pointer; }
+    body { 
+      font-family: system-ui, sans-serif; 
+      margin: 0; 
+      padding: 0; 
+      background: #1e1e28;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    #gameCanvas {
+      border: 2px solid #444;
+      background: #1e1e28;
+    }
   </style>
 </head>
 <body>
-  <div class="box">
-    <h2>JS Template</h2>
-    <p>Implement your minigame here. When done, post RESULT to parent.</p>
-    <p><small>Controls: P1=WASD+Space, P2=Arrows+Enter, P3=IJKL+U, P4=TFGH+R</small></p>
-    <button id="finish">Finish (random scores)</button>
-  </div>
+  <canvas id="gameCanvas" width="640" height="360"></canvas>
   <script src="controls.js"></script>
   <script src="game.js"></script>
 </body>
