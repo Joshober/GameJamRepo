@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>4-Player Co-op Shooter (3D)</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #0a0a0f; font-family: system-ui, sans-serif; }
+    #canvas { display: block; width: 100vw; height: 100vh; }
+    #ui {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      display: flex; flex-wrap: wrap; justify-content: space-around; align-items: center;
+      gap: 8px; padding: 12px;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.75), transparent);
+      color: #fff; font-size: 13px; pointer-events: none;
+    }
+    #ui .team { background: #2a9d8f; padding: 6px 14px; border-radius: 10px; font-weight: bold; }
+    #ui .wave { background: #457b9d; padding: 6px 12px; border-radius: 10px; }
+    #ui .time { background: #1a1a2e; padding: 6px 12px; border-radius: 10px; border: 1px solid #2a9d8f; }
+    #ui span.hp { padding: 4px 10px; border-radius: 8px; }
+    #ui .p1 { background: #e63946; }
+    #ui .p2 { background: #457b9d; }
+    #ui .p3 { background: #2a9d8f; }
+    #ui .p4 { background: #e9c46a; color: #1a1a1a; }
+    #startScreen {
+      position: fixed; inset: 0; background: linear-gradient(135deg, #0d0d14 0%, #1a1a2e 100%);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      color: #fff; text-align: center; padding: 24px;
+    }
+    #startScreen h1 { margin-bottom: 12px; font-size: 26px; color: #2a9d8f; }
+    #startScreen p { margin-bottom: 16px; opacity: 0.9; max-width: 440px; line-height: 1.5; }
+    #startScreen .qrBox {
+      display: flex; flex-direction: column; align-items: center; margin: 16px 0;
+    }
+    #startScreen .qrWhite {
+      background: #fff; padding: 16px; border-radius: 16px; box-shadow: 0 6px 24px rgba(0,0,0,0.3);
+      margin-bottom: 12px;
+    }
+    #startScreen .qrGrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 16px 0; max-width: 420px; }
+    @media (min-width: 520px) { #startScreen .qrGrid { grid-template-columns: repeat(4, 1fr); max-width: 100%; } }
+    #startScreen .qrCell { background: #fff; padding: 10px; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); text-align: center; }
+    #startScreen .qrCell span { display: block; font-size: 11px; color: #1a1a2e; margin-bottom: 6px; font-weight: bold; }
+    #startScreen .qrCell > div { min-height: 100px; display: flex; align-items: center; justify-content: center; }
+    #startScreen .qrCell img { display: block; }
+    #startScreen .qrCell table { margin: 0 auto; }
+    #endScreen {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 100;
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      color: #fff; font-family: system-ui, sans-serif; padding: 24px;
+    }
+    #endScreen.visible { display: flex; }
+    #endScreen h2 { font-size: 28px; margin-bottom: 8px; color: #2a9d8f; }
+    #endScreen .sub { opacity: 0.9; margin-bottom: 24px; }
+    #endScreen .ranking { list-style: none; font-size: 18px; margin-bottom: 24px; }
+    #endScreen .ranking li { padding: 10px 20px; margin: 6px 0; border-radius: 10px; display: flex; justify-content: space-between; min-width: 220px; }
+    #endScreen .ranking .pos { font-weight: bold; margin-right: 12px; }
+    #endScreen .ranking .kills { color: #2a9d8f; font-weight: bold; }
+    #startScreen .urlText {
+      font-family: monospace; font-size: 12px; word-break: break-all; max-width: 320px; text-align: center; opacity: 0.9;
+    }
+    #startScreen .qrLink { margin-top: 8px; }
+    #startScreen .qrLink a { color: #2a9d8f; text-decoration: none; font-size: 13px; }
+    #startScreen .qrLink a:hover { text-decoration: underline; }
+    #startScreen button {
+      padding: 14px 36px; font-size: 18px; border: none; border-radius: 12px;
+      background: #2a9d8f; color: #fff; cursor: pointer; font-weight: bold;
+    }
+    #startScreen button:hover { background: #34b5a4; }
+  </style>
+</head>
+<body>
+  <div id="startScreen">
+    <h1>4-Player Co-op Shooter</h1>
+    <p>All 4 players are on the same team. Kill the enemies that spawn in waves. Complete 5 waves or survive 2 minutes.</p>
+    <p><strong>Keyboard:</strong> P1 WASD+Space · P2 Arrows+Enter · P3 IJKL+U · P4 TFGH+R</p>
+    <p><strong>Mobile:</strong> Scan your player's QR (same WiFi). If you run <code>npm start</code>, each QR points to your IP.</p>
+    <div class="qrBox" id="qrBox">
+      <div class="qrGrid" id="qrGrid"></div>
+      <span id="mobileUrl" class="urlText">Loading...</span>
+    </div>
+    <p class="qrLink" id="qrLinkWrap" style="display: none;"><a href="/qr" target="_blank" rel="noopener">Open 4 QRs full screen</a></p>
+    <button id="startBtn">Play</button>
+  </div>
+  <div id="ui" style="display: none;">
+    <span class="team">Team: <span id="teamScore">0</span> kills</span>
+    <span class="wave">Wave <span id="waveNum">1 / 5</span></span>
+    <span class="time"><span id="timer">120</span> s</span>
+    <span class="hp p1">P1: <span id="h1">100</span> HP</span>
+    <span class="hp p2">P2: <span id="h2">100</span> HP</span>
+    <span class="hp p3">P3: <span id="h3">100</span> HP</span>
+    <span class="hp p4">P4: <span id="h4">100</span> HP</span>
+  </div>
+  <div id="endScreen">
+    <h2>Time's up!</h2>
+    <p class="sub">Whoever got the most kills wins</p>
+    <ul class="ranking" id="ranking"></ul>
+    <p class="sub" id="winnerText"></p>
+  </div>
+  <canvas id="canvas"></canvas>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="controls.js"></script>
+  <script src="game.js"></script>
+  <script>
+    (function() {
+      var qrGrid = document.getElementById('qrGrid');
+      var urlEl = document.getElementById('mobileUrl');
+      function showFourQRs(baseUrl) {
+        if (!qrGrid) return;
+        qrGrid.innerHTML = '';
+        for (var p = 1; p <= 4; p++) {
+          var url = baseUrl.replace(/\/controller.*/, '') + '/controller?player=' + p;
+          var cell = document.createElement('div');
+          cell.className = 'qrCell';
+          cell.innerHTML = '<span>Player ' + p + '</span><div id="qr' + p + '"></div>';
+          qrGrid.appendChild(cell);
+          var container = document.getElementById('qr' + p);
+          if (container && typeof QRCode !== 'undefined')
+            new QRCode(container, { text: url, width: 90, height: 90 });
+          else if (container) {
+            var img = document.createElement('img');
+            img.src = baseUrl.replace(/\/controller.*/, '') + '/qrcode?player=' + p + '&size=120&t=' + Date.now();
+            img.width = 90;
+            img.height = 90;
+            container.appendChild(img);
+          }
+        }
+        if (urlEl) urlEl.textContent = baseUrl.replace(/\/controller.*/, '') + '/controller?player=1 ... 4';
+        var linkWrap = document.getElementById('qrLinkWrap');
+        if (linkWrap) linkWrap.style.display = 'block';
+      }
+      if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+        showFourQRs(window.location.origin + '/controller?player=1');
+        fetch('/ip').then(function(r) { return r.json(); }).then(function(d) {
+          showFourQRs('http://' + d.ip + ':' + d.port + '/controller?player=1');
+        }).catch(function() {});
+      }
+    })();
+  </script>
+</body>
+</html>
