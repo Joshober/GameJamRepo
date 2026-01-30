@@ -1,0 +1,7 @@
+{
+  "id": "mg-XXX",
+  "name": "JS Template",
+  "type": "js",
+  "players": 4,
+  "entry": "index.html"
+}
