@@ -27,7 +27,6 @@ from Utils.ExitDoor import ExitDoor
 from Utils.ButtonObject import ButtonObject
 from Utils.Portal_gun import Portal
 from Utils.ProfessionalLevel import LevelDesign
-from Utils.TwoPortalLevels import TwoPortalLevels
 from Utils.ProfessionalUI import ProfessionalUI
 from Utils.GameScreens import GameScreens
 from Utils.LevelAssets import get_background_texture, tile_texture
