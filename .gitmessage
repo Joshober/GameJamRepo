@@ -1,0 +1,5 @@
+Merge game from template/[template-name] branch
+
+This game was developed from the [template-name] template and is ready to be integrated into the main repository.
+
+The game files should be placed in: minigames/mg-[game-name]/
