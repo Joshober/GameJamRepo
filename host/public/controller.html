@@ -15,26 +15,30 @@
       touch-action: none;
       -webkit-user-select: none;
       user-select: none;
+      height: 100vh;
+      height: 100dvh; /* Dynamic viewport height for mobile */
     }
     .container {
       display: flex;
       flex-direction: column;
       height: 100vh;
-      padding: 20px;
+      height: 100dvh;
+      padding: min(20px, 3vw);
       max-width: 600px;
       margin: 0 auto;
     }
     .status {
       text-align: center;
-      padding: 18px;
+      padding: min(14px, 2.5vw);
       background: linear-gradient(135deg, rgba(45, 53, 97, 0.95), rgba(58, 74, 122, 0.95));
-      border: 3px solid var(--mp-blue);
-      border-radius: 16px;
-      margin-bottom: 24px;
+      border: 2px solid var(--mp-blue);
+      border-radius: 12px;
+      margin-bottom: min(16px, 2.5vw);
       font-weight: 700;
-      font-size: 16px;
+      font-size: clamp(14px, 3.5vw, 16px);
       box-shadow: var(--shadow-md);
       transition: all 0.3s ease;
+      flex-shrink: 0;
     }
     .status.connected { 
       background: linear-gradient(135deg, rgba(76, 175, 80, 0.3), rgba(102, 187, 106, 0.3));
@@ -50,16 +54,17 @@
     .player-select {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 16px;
-      margin-bottom: 24px;
+      gap: min(12px, 2vw);
+      margin-bottom: min(16px, 2.5vw);
+      flex-shrink: 0;
     }
     .player-btn {
-      padding: 24px 16px;
+      padding: min(18px, 3.5vw) min(12px, 2vw);
       background: linear-gradient(135deg, rgba(45, 53, 97, 0.8), rgba(58, 74, 122, 0.8));
-      border: 3px solid;
-      border-radius: 16px;
+      border: 2px solid;
+      border-radius: 12px;
       color: #fff;
-      font-size: 18px;
+      font-size: clamp(14px, 3.5vw, 18px);
       font-weight: 800;
       font-family: 'Fredoka One', cursive;
       cursor: pointer;
@@ -75,32 +80,28 @@
       top: 0;
       left: 0;
       right: 0;
-      height: 6px;
+      height: 4px;
       background: currentColor;
       opacity: 0.8;
     }
-    .player-btn[data-player="1"] {
-      border-color: var(--player-1);
-      color: var(--player-1);
-    }
-    .player-btn[data-player="2"] {
-      border-color: var(--player-2);
-      color: var(--player-2);
-    }
-    .player-btn[data-player="3"] {
-      border-color: var(--player-3);
-      color: var(--player-3);
-    }
-    .player-btn[data-player="4"] {
-      border-color: var(--player-4);
-      color: var(--player-4);
-    }
-    .player-btn:active { 
-      transform: scale(0.95);
-    }
-    .player-btn:hover {
+    .player-btn[data-player="1"] { border-color: var(--player-1); color: var(--player-1); }
+    .player-btn[data-player="2"] { border-color: var(--player-2); color: var(--player-2); }
+    .player-btn[data-player="3"] { border-color: var(--player-3); color: var(--player-3); }
+    .player-btn[data-player="4"] { border-color: var(--player-4); color: var(--player-4); }
+    .player-btn:active:not(:disabled) { transform: scale(0.95); }
+    .player-btn:hover:not(:disabled) {
       transform: translateY(-2px) scale(1.02);
       box-shadow: var(--shadow-md), 0 0 20px currentColor;
+    }
+    .player-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      filter: grayscale(0.5);
+    }
+    .player-btn.taken {
+      background: linear-gradient(135deg, rgba(158, 158, 158, 0.3), rgba(189, 189, 189, 0.3));
+      border-color: #9e9e9e;
+      color: #9e9e9e;
     }
     .player-btn.available { 
       background: linear-gradient(135deg, rgba(76, 175, 80, 0.3), rgba(102, 187, 106, 0.3));
@@ -111,6 +112,13 @@
       box-shadow: 0 0 25px currentColor;
       animation: pulse-glow 2s ease-in-out infinite;
     }
+    .player-btn small {
+      display: block;
+      font-size: clamp(10px, 2.5vw, 12px);
+      margin-top: 4px;
+      opacity: 0.8;
+    }
+    
     .controls {
       flex: 1;
       display: grid;
@@ -118,20 +126,58 @@
         ". up ."
         "left center right"
         ". down ."
-        ". action .";
+        ". action ."
+        ". aim-up ."
+        ". aim-down ."
+        ". plant ."
+        ". eat ."
+        ". use ."
+        ". interact .";
       grid-template-columns: 1fr 1fr 1fr;
-      grid-template-rows: 1fr 1fr 1fr 1fr;
-      gap: 16px;
-      max-width: 400px;
+      grid-template-rows: repeat(10, 1fr);
+      gap: min(12px, 2vw);
+      max-width: 100%;
       margin: 0 auto;
       width: 100%;
+      min-height: 0; /* Allow grid to shrink */
     }
+    
+    /* Hide buttons by default, show when game needs them */
+    .controls.has-aim .btn-aim-up { display: flex; }
+    .controls.has-aim .btn-aim-down { display: flex; }
+    .controls:not(.has-aim) .btn-aim-up,
+    .controls:not(.has-aim) .btn-aim-down {
+      display: none;
+    }
+    .controls.has-extra .btn-plant { display: flex; }
+    .controls.has-extra .btn-eat { display: flex; }
+    .controls.has-extra .btn-use { display: flex; }
+    .controls.has-extra .btn-interact { display: flex; }
+    .controls:not(.has-extra) .btn-plant,
+    .controls:not(.has-extra) .btn-eat,
+    .controls:not(.has-extra) .btn-use,
+    .controls:not(.has-extra) .btn-interact {
+      display: none;
+    }
+    .controls:not(.has-aim):not(.has-extra) {
+      grid-template-rows: repeat(4, 1fr);
+    }
+    .controls.has-aim:not(.has-extra) {
+      grid-template-rows: repeat(6, 1fr);
+    }
+    .controls.has-extra:not(.has-aim) {
+      grid-template-rows: repeat(8, 1fr);
+    }
+    .controls.has-aim.has-extra {
+      grid-template-rows: repeat(10, 1fr);
+    }
+    
     .btn {
       background: linear-gradient(135deg, rgba(45, 53, 97, 0.9), rgba(58, 74, 122, 0.9));
-      border: 3px solid var(--mp-blue);
-      border-radius: 16px;
+      border: 2px solid var(--mp-blue);
+      border-radius: 12px;
       color: var(--text-primary);
-      font-size: 32px;
+      font-size: clamp(24px, 6vw, 32px);
       font-weight: bold;
       display: flex;
       align-items: center;
@@ -139,13 +185,14 @@
       touch-action: none;
       -webkit-tap-highlight-color: transparent;
       box-shadow: var(--shadow-sm);
-      transition: all 0.2s ease;
+      transition: all 0.15s ease;
       font-family: 'Fredoka One', cursive;
+      min-height: 0; /* Allow buttons to shrink */
     }
     .btn:active, .btn.pressed {
       background: linear-gradient(135deg, rgba(74, 144, 226, 0.6), rgba(91, 163, 245, 0.6));
       border-color: var(--mp-blue-light);
-      transform: scale(0.9);
+      transform: scale(0.92);
       box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.3);
     }
     .btn-up { 
@@ -173,16 +220,197 @@
       background: linear-gradient(135deg, var(--mp-yellow), var(--mp-yellow-light));
       border-color: var(--mp-yellow-light);
       color: #000;
-      font-size: 36px;
+      font-size: clamp(28px, 7vw, 36px);
       box-shadow: var(--shadow-md), 0 0 20px rgba(255, 215, 0, 0.5);
     }
     .btn-action:active, .btn-action.pressed {
       background: linear-gradient(135deg, var(--mp-yellow-light), var(--mp-yellow));
       border-color: var(--mp-yellow);
-      transform: scale(0.9);
+      transform: scale(0.92);
       box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.3), 0 0 30px rgba(255, 215, 0, 0.8);
     }
+    .btn-aim-up {
+      grid-area: aim-up;
+      background: linear-gradient(135deg, rgba(255, 152, 0, 0.8), rgba(255, 193, 7, 0.8));
+      border-color: #ff9800;
+      font-size: clamp(20px, 5vw, 26px);
+    }
+    .btn-aim-down {
+      grid-area: aim-down;
+      background: linear-gradient(135deg, rgba(255, 152, 0, 0.8), rgba(255, 193, 7, 0.8));
+      border-color: #ff9800;
+      font-size: clamp(20px, 5vw, 26px);
+    }
+    .btn-plant {
+      grid-area: plant;
+      background: linear-gradient(135deg, rgba(76, 175, 80, 0.8), rgba(102, 187, 106, 0.8));
+      border-color: var(--mp-green);
+      font-size: clamp(20px, 5vw, 26px);
+    }
+    .btn-eat {
+      grid-area: eat;
+      background: linear-gradient(135deg, rgba(244, 67, 54, 0.8), rgba(239, 83, 80, 0.8));
+      border-color: #f44336;
+      font-size: clamp(20px, 5vw, 26px);
+    }
+    .btn-use {
+      grid-area: use;
+      background: linear-gradient(135deg, rgba(156, 39, 176, 0.8), rgba(186, 104, 200, 0.8));
+      border-color: #9c27b0;
+      font-size: clamp(20px, 5vw, 26px);
+    }
+    .btn-interact {
+      grid-area: interact;
+      background: linear-gradient(135deg, rgba(33, 150, 243, 0.8), rgba(66, 165, 245, 0.8));
+      border-color: #2196f3;
+      font-size: clamp(20px, 5vw, 26px);
+    }
     .hidden { display: none; }
+    
+    /* Landscape orientation adjustments */
+    @media (orientation: landscape) {
+      .container {
+        flex-direction: row;
+        padding: min(8px, 1.5vw);
+        max-width: 100%;
+        gap: min(12px, 2vw);
+        align-items: stretch;
+      }
+      .status {
+        position: absolute;
+        top: min(8px, 1.5vw);
+        left: 50%;
+        transform: translateX(-50%);
+        width: auto;
+        min-width: 200px;
+        padding: min(6px, 1.2vw) min(12px, 2vw);
+        margin-bottom: 0;
+        font-size: clamp(11px, 2vw, 13px);
+        z-index: 10;
+      }
+      .player-select {
+        position: absolute;
+        top: min(50px, 8vw);
+        left: min(8px, 1.5vw);
+        width: auto;
+        grid-template-columns: 1fr;
+        gap: min(6px, 1.2vw);
+        margin-bottom: 0;
+      }
+      .player-btn {
+        padding: min(8px, 1.5vw) min(12px, 2vw);
+        font-size: clamp(11px, 2vw, 13px);
+        white-space: nowrap;
+      }
+      .controls {
+        flex: 1;
+        display: grid;
+        grid-template-areas:
+          "left up right . action ."
+          "left center right . action ."
+          "left down right . action ."
+          ". . . . aim-up ."
+          ". . . . aim-down ."
+          ". . . . plant ."
+          ". . . . eat ."
+          ". . . . use .";
+        grid-template-columns: 1fr 1fr 1fr 0.5fr 1fr 0.5fr;
+        grid-template-rows: repeat(8, 1fr);
+        gap: min(8px, 1.5vw);
+        margin: 0;
+        max-width: 100%;
+        align-items: stretch;
+      }
+      .controls:not(.has-aim):not(.has-extra) {
+        grid-template-areas:
+          "left up right . action ."
+          "left center right . action ."
+          "left down right . action .";
+        grid-template-rows: repeat(3, 1fr);
+      }
+      .controls.has-aim:not(.has-extra) {
+        grid-template-areas:
+          "left up right . action ."
+          "left center right . action ."
+          "left down right . action ."
+          ". . . . aim-up ."
+          ". . . . aim-down .";
+        grid-template-rows: repeat(5, 1fr);
+      }
+      .controls.has-extra:not(.has-aim) {
+        grid-template-areas:
+          "left up right . action ."
+          "left center right . action ."
+          "left down right . action ."
+          ". . . . plant ."
+          ". . . . eat ."
+          ". . . . use ."
+          ". . . . interact .";
+        grid-template-rows: repeat(7, 1fr);
+      }
+      .controls.has-aim.has-extra {
+        grid-template-areas:
+          "left up right . action ."
+          "left center right . action ."
+          "left down right . action ."
+          ". . . . aim-up ."
+          ". . . . aim-down ."
+          ". . . . plant ."
+          ". . . . eat ."
+          ". . . . use ."
+          ". . . . interact .";
+        grid-template-rows: repeat(9, 1fr);
+      }
+      .btn {
+        font-size: clamp(22px, 5vw, 32px);
+        min-height: 60px;
+      }
+      .btn-action {
+        font-size: clamp(26px, 6vw, 36px);
+        grid-row: span 3;
+      }
+      .btn-aim-up,
+      .btn-aim-down,
+      .btn-plant,
+      .btn-eat,
+      .btn-use {
+        font-size: clamp(18px, 4vw, 24px);
+        min-height: 50px;
+      }
+    }
+    
+    /* Very small landscape screens */
+    @media (orientation: landscape) and (max-height: 400px) {
+      .status {
+        font-size: clamp(10px, 1.8vw, 12px);
+        padding: min(4px, 1vw) min(8px, 1.5vw);
+      }
+      .player-btn {
+        padding: min(6px, 1.2vw) min(10px, 1.8vw);
+        font-size: clamp(10px, 1.8vw, 12px);
+      }
+      .btn {
+        font-size: clamp(16px, 3.5vw, 22px);
+        min-height: 40px;
+      }
+      .btn-action {
+        font-size: clamp(20px, 4.5vw, 28px);
+      }
+    }
+    
+    /* Very small screens */
+    @media (max-width: 320px) {
+      .container {
+        padding: 10px;
+      }
+      .status {
+        padding: 10px;
+        font-size: 12px;
+      }
+      .controls {
+        gap: 8px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -192,10 +420,10 @@
     </div>
     
     <div id="playerSelect" class="player-select">
-      <button class="player-btn" data-player="1">Player 1<br/><small>WASD+Space</small></button>
-      <button class="player-btn" data-player="2">Player 2<br/><small>Arrows+Enter</small></button>
-      <button class="player-btn" data-player="3">Player 3<br/><small>IJKL+U</small></button>
-      <button class="player-btn" data-player="4">Player 4<br/><small>TFGH+R</small></button>
+      <button class="player-btn" data-player="1">Player 1<small id="hint-p1">WASD+Space</small></button>
+      <button class="player-btn" data-player="2">Player 2<small id="hint-p2">Arrows+Enter</small></button>
+      <button class="player-btn" data-player="3">Player 3<small id="hint-p3">IJKL+U</small></button>
+      <button class="player-btn" data-player="4">Player 4<small id="hint-p4">TFGH+R</small></button>
     </div>
     
     <div id="controls" class="controls hidden">
@@ -204,6 +432,12 @@
       <button class="btn btn-right" data-button="right">→</button>
       <button class="btn btn-down" data-button="down">↓</button>
       <button class="btn btn-action" data-button="action">●</button>
+      <button class="btn btn-aim-up" data-button="aim_up">↑↑</button>
+      <button class="btn btn-aim-down" data-button="aim_down">↓↓</button>
+      <button class="btn btn-plant" data-button="plant">🌱</button>
+      <button class="btn btn-eat" data-button="eat">🍎</button>
+      <button class="btn btn-use" data-button="use">👆</button>
+      <button class="btn btn-interact" data-button="interact">🚪</button>
     </div>
   </div>
   
@@ -212,10 +446,54 @@
     const ws = new WebSocket(`${protocol}//${window.location.host}?mobile=true`);
     
     let currentPlayer = null;
+    let currentGame = null;
+    let controlHints = null;
+    let takenPlayers = []; // Track which players are already taken
     const statusEl = document.getElementById("status");
     const playerSelectEl = document.getElementById("playerSelect");
     const controlsEl = document.getElementById("controls");
     const buttons = {};
+    
+    function updatePlayerAvailability(taken) {
+      takenPlayers = taken || [];
+      document.querySelectorAll('.player-btn').forEach(btn => {
+        const player = parseInt(btn.dataset.player);
+        const isTaken = takenPlayers.includes(player);
+        btn.disabled = isTaken;
+        btn.classList.toggle('taken', isTaken);
+        if (isTaken) {
+          btn.style.opacity = '0.5';
+          btn.style.cursor = 'not-allowed';
+          const small = btn.querySelector('small');
+          if (small) {
+            small.textContent = 'Taken';
+          }
+        } else {
+          btn.style.opacity = '1';
+          btn.style.cursor = 'pointer';
+          // Restore original hint text
+          const hintId = `hint-p${player}`;
+          const hintEl = document.getElementById(hintId);
+          if (hintEl && controlHints) {
+            const hintKey = `player${player}`;
+            hintEl.textContent = controlHints[hintKey] || (player === 1 ? 'WASD+Space' : player === 2 ? 'Arrows+Enter' : player === 3 ? 'IJKL+U' : 'TFGH+R');
+          }
+        }
+      });
+    }
+    
+    function updateControlHints(hints) {
+      if (!hints) return;
+      controlHints = hints;
+      const hintP1 = document.getElementById("hint-p1");
+      const hintP2 = document.getElementById("hint-p2");
+      const hintP3 = document.getElementById("hint-p3");
+      const hintP4 = document.getElementById("hint-p4");
+      if (hintP1 && hints.player1) hintP1.textContent = hints.player1;
+      if (hintP2 && hints.player2) hintP2.textContent = hints.player2;
+      if (hintP3 && hints.player3) hintP3.textContent = hints.player3;
+      if (hintP4 && hints.player4) hintP4.textContent = hints.player4;
+    }
     
     // Initialize button tracking
     document.querySelectorAll('.btn').forEach(btn => {
@@ -246,6 +524,10 @@
     document.querySelectorAll('.player-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const player = parseInt(btn.dataset.player);
+        // Don't allow joining if player is already taken
+        if (takenPlayers.includes(player)) {
+          return;
+        }
         ws.send(JSON.stringify({ type: "JOIN", player }));
       });
     });
@@ -263,6 +545,36 @@
       }));
     }
     
+    function updateControlsForGame(gameId) {
+      if (!gameId) {
+        // No game - hide all extra buttons
+        controlsEl.classList.remove('has-aim', 'has-extra');
+        return;
+      }
+      
+      // Show/hide aim buttons based on game (also used for inventory scrolling in BoredGame)
+      const needsAim = (
+        gameId.includes('portal') || 
+        gameId.includes('shooter') ||
+        gameId.includes('aim') ||
+        gameId === 'mg-portal-2d-pygame' ||
+        gameId === 'mg-shooter-4p-3d' ||
+        gameId.includes('bored') ||
+        gameId === 'mg-bored-game'
+      );
+      
+      // Show/hide extra buttons (plant/eat/use/interact) for BoredGame
+      const needsExtra = (
+        gameId.includes('bored') ||
+        gameId.includes('BoredGame') ||
+        gameId === 'BoredGame' ||
+        gameId === 'mg-bored-game'
+      );
+      
+      controlsEl.classList.toggle('has-aim', needsAim);
+      controlsEl.classList.toggle('has-extra', needsExtra);
+    }
+    
     ws.onopen = () => {
       statusEl.textContent = "Connected! Select your player slot.";
       statusEl.classList.add("connected");
@@ -271,8 +583,20 @@
     ws.onmessage = (e) => {
       const msg = JSON.parse(e.data);
       
-      if (msg.type === "JOINED") {
+      if (msg.type === "PLAYER_AVAILABILITY") {
+        // Update which players are taken
+        updatePlayerAvailability(msg.takenPlayers || []);
+      } else if (msg.type === "JOINED") {
         currentPlayer = msg.player;
+        // Get current game info if provided
+        if (msg.currentGame) {
+          currentGame = msg.currentGame;
+          updateControlsForGame(currentGame.id);
+        }
+        // Update control hints if provided
+        if (msg.controlHints) {
+          updateControlHints(msg.controlHints);
+        }
         statusEl.textContent = `Player ${currentPlayer} - Ready!`;
         statusEl.classList.add("joined");
         playerSelectEl.classList.add("hidden");
@@ -280,8 +604,48 @@
       } else if (msg.type === "JOIN_FAILED") {
         statusEl.textContent = `Failed: ${msg.error}`;
         statusEl.classList.remove("connected", "joined");
+        // Refresh player availability
+        if (msg.takenPlayers) {
+          updatePlayerAvailability(msg.takenPlayers);
+        }
+      } else if (msg.type === "GAME_STARTED") {
+        // Game started - update controls for this game
+        currentGame = msg.payload?.game;
+        if (currentGame) {
+          updateControlsForGame(currentGame.id);
+          // Update control hints if provided
+          if (msg.payload?.controlHints) {
+            updateControlHints(msg.payload.controlHints);
+          }
+          if (currentPlayer) {
+            statusEl.textContent = `Player ${currentPlayer} - ${currentGame.name} Active!`;
+          }
+        }
+      } else if (msg.type === "GAME_ENDED") {
+        // Game ended - reset to default controls
+        currentGame = null;
+        updateControlsForGame(null);
+        if (currentPlayer) {
+          statusEl.textContent = `Player ${currentPlayer} - Ready!`;
+        }
       } else if (msg.type === "START_JS") {
-        statusEl.textContent = `Player ${currentPlayer} - Game Active!`;
+        // JS game started
+        currentGame = msg.payload?.game;
+        if (currentGame) {
+          updateControlsForGame(currentGame.id);
+          if (currentPlayer) {
+            statusEl.textContent = `Player ${currentPlayer} - ${currentGame.name} Active!`;
+          }
+        } else if (currentPlayer) {
+          statusEl.textContent = `Player ${currentPlayer} - Game Active!`;
+        }
+      } else if (msg.type === "STATE") {
+        // Check if there's a current game running from last result
+        const lastResult = msg.payload?.lastResult;
+        if (lastResult && lastResult.gameId && !currentGame) {
+          currentGame = { id: lastResult.gameId };
+          updateControlsForGame(currentGame.id);
+        }
       }
     };
     
@@ -294,6 +658,16 @@
       statusEl.textContent = "Disconnected. Refresh to reconnect.";
       statusEl.classList.remove("connected", "joined");
     };
+    
+    // Prevent zoom on double tap
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', (e) => {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) {
+        e.preventDefault();
+      }
+      lastTouchEnd = now;
+    }, false);
   </script>
 </body>
 </html>

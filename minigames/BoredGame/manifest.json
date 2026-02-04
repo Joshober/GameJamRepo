@@ -1,0 +1,7 @@
+{
+  "id": "mg-bored-game",
+  "name": "Bored Game - Stardew Valley Style",
+  "type": "pygame",
+  "players": 4,
+  "entry": "main.py"
+}

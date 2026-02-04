@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duck Hunt Ultra Realistic</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        #gameContainer {
+            border: 3px solid #444;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(255,255,255,0.3);
+            position: relative;
+        }
+        
+        canvas {
+            display: block;
+            border-radius: 12px;
+        }
+        
+        .instructions {
+            color: white;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+            color: white;
+            font-size: 14px;
+        }
+        
+        .player-controls {
+            text-align: center;
+            padding: 15px;
+            border: 2px solid #333;
+            border-radius: 10px;
+            background: rgba(0,0,0,0.5);
+        }
+        
+        .player1 { border-color: #ff4444; background: rgba(255,68,68,0.1); }
+        .player2 { border-color: #44ff44; background: rgba(68,255,68,0.1); }
+        .player3 { border-color: #4444ff; background: rgba(68,68,255,0.1); }
+        .player4 { border-color: #ffff44; background: rgba(255,255,68,0.1); }
+    </style>
+</head>
+<body>
+    <div>
+        <div class="instructions">
+            <h1 style="text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">Duck Hunt Ultra Realistic</h1>
+            <p>Professional duck hunting simulation - 60 seconds of intense action!</p>
+        </div>
+        
+        <div class="controls">
+            <div class="player-controls player1">
+                <h3 style="color: #ff4444;">Hunter 1</h3>
+                <p><strong>Move:</strong> W A S D<br><strong>Fire:</strong> SPACE</p>
+            </div>
+            <div class="player-controls player2">
+                <h3 style="color: #44ff44;">Hunter 2</h3>
+                <p><strong>Move:</strong> Arrow Keys<br><strong>Fire:</strong> ENTER</p>
+            </div>
+            <div class="player-controls player3">
+                <h3 style="color: #4444ff;">Hunter 3</h3>
+                <p><strong>Move:</strong> I J K L<br><strong>Fire:</strong> U</p>
+            </div>
+            <div class="player-controls player4">
+                <h3 style="color: #ffff44;">Hunter 4</h3>
+                <p><strong>Move:</strong> T F G H<br><strong>Fire:</strong> R</p>
+            </div>
+        </div>
+        
+        <div id="gameContainer">
+            <canvas id="gameCanvas" width="1200" height="800"></canvas>
+        </div>
+    </div>
+
+    <script>
+        class UltraRealisticDuckHunt {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                
+                this.players = [
+                    { score: 0, color: '#FF4444', x: 150, y: 400, keys: { left: 'KeyA', right: 'KeyD', up: 'KeyW', down: 'KeyS', shoot: 'Space' }},
+                    { score: 0, color: '#44FF44', x: 350, y: 400, keys: { left: 'ArrowLeft', right: 'ArrowRight', up: 'ArrowUp', down: 'ArrowDown', shoot: 'Enter' }},
+                    { score: 0, color: '#4444FF', x: 550, y: 400, keys: { left: 'KeyJ', right: 'KeyL', up: 'KeyI', down: 'KeyK', shoot: 'KeyU' }},
+                    { score: 0, color: '#FFFF44', x: 750, y: 400, keys: { left: 'KeyF', right: 'KeyH', up: 'KeyT', down: 'KeyG', shoot: 'KeyR' }}
+                ];
+                
+                this.ducks = [];
+                this.crosshairs = [];
+                this.particles = [];
+                this.gameTime = 60;
+                this.gameStartTime = Date.now();
+                this.gameActive = true;
+                this.pressedKeys = new Set();
+                this.shootCooldown = new Set();
+                this.screenShake = 0;
+                this.time = 0;
+                
+                // Mobile controls state per player
+                this.mobileControls = [
+                    { up: false, down: false, left: false, right: false, action: false },
+                    { up: false, down: false, left: false, right: false, action: false },
+                    { up: false, down: false, left: false, right: false, action: false },
+                    { up: false, down: false, left: false, right: false, action: false }
+                ];
+                
+                this.init();
+            }
+            
+            init() {
+                this.setupCrosshairs();
+                this.setupControls();
+                this.setupMobileControls();
+                this.startGameLoop();
+            }
+            
+            setupCrosshairs() {
+                this.players.forEach((player, index) => {
+                    this.crosshairs.push({
+                        x: player.x,
+                        y: player.y,
+                        color: player.color,
+                        pulse: 0
+                    });
+                });
+            }
+            
+            setupControls() {
+                document.addEventListener('keydown', (e) => {
+                    this.pressedKeys.add(e.code);
+                });
+                
+                document.addEventListener('keyup', (e) => {
+                    this.pressedKeys.delete(e.code);
+                });
+            }
+            
+            setupMobileControls() {
+                // Listen for mobile control events from host
+                window.addEventListener('message', (e) => {
+                    if (e.data && e.data.type === 'MOBILE_CONTROL') {
+                        const { player, button, pressed } = e.data;
+                        if (player >= 1 && player <= 4) {
+                            const playerIndex = player - 1;
+                            if (this.mobileControls[playerIndex]) {
+                                this.mobileControls[playerIndex][button] = pressed;
+                            }
+                        }
+                    }
+                });
+            }
+            
+            createDuck() {
+                const duckType = Math.random();
+                let species, color, bellyColor, wingColor, points, speed, size;
+                
+                if (duckType > 0.85) {
+                    species = 'Mallard';
+                    color = '#006400';
+                    bellyColor = '#F5DEB3';
+                    wingColor = '#4169E1';
+                    points = 500;
+                    speed = 15;
+                    size = 1.2;
+                } else if (duckType > 0.65) {
+                    species = 'Wood Duck';
+                    color = '#8B4513';
+                    bellyColor = '#DEB887';
+                    wingColor = '#4682B4';
+                    points = 300;
+                    speed = 12;
+                    size = 1.0;
+                } else if (duckType > 0.35) {
+                    species = 'Teal';
+                    color = '#2F4F4F';
+                    bellyColor = '#F0E68C';
+                    wingColor = '#008B8B';
+                    points = 200;
+                    speed = 9;
+                    size = 0.9;
+                } else {
+                    species = 'Pintail';
+                    color = '#696969';
+                    bellyColor = '#FFFAF0';
+                    wingColor = '#708090';
+                    points = 100;
+                    speed = 6;
+                    size = 0.8;
+                }
+                
+                this.ducks.push({
+                    x: Math.random() * 1200,
+                    y: Math.random() * 300 + 100,
+                    vx: (Math.random() - 0.5) * speed,
+                    vy: (Math.random() - 0.5) * (speed * 0.5),
+                    alive: true,
+                    points: points,
+                    species: species,
+                    color: color,
+                    bellyColor: bellyColor,
+                    wingColor: wingColor,
+                    maxSpeed: speed,
+                    wingFlap: 0,
+                    size: size,
+                    direction: Math.random() > 0.5 ? 1 : -1
+                });
+            }
+            
+            updateDucks() {
+                this.ducks.forEach((duck, index) => {
+                    if (!duck.alive) {
+                        duck.y += 8;
+                        duck.rotation = (duck.rotation || 0) + 0.15;
+                        if (duck.y > 800) {
+                            this.ducks.splice(index, 1);
+                        }
+                        return;
+                    }
+                    
+                    duck.x += duck.vx;
+                    duck.y += duck.vy;
+                    
+                    duck.wingFlap += 0.4;
+                    duck.y += Math.sin(duck.wingFlap) * 0.8;
+                    
+                    duck.vx += (Math.random() - 0.5) * 0.15;
+                    duck.vy += (Math.random() - 0.5) * 0.08;
+                    
+                    const maxSpeed = duck.maxSpeed || 6;
+                    duck.vx = Math.max(-maxSpeed, Math.min(maxSpeed, duck.vx));
+                    duck.vy = Math.max(-maxSpeed * 0.5, Math.min(maxSpeed * 0.5, duck.vy));
+                    
+                    if (duck.x < 50 || duck.x > 1150) {
+                        duck.vx *= -0.8;
+                        duck.direction *= -1;
+                    }
+                    if (duck.y < 75 || duck.y > 400) {
+                        duck.vy *= -0.8;
+                    }
+                    
+                    duck.x = Math.max(50, Math.min(1150, duck.x));
+                    duck.y = Math.max(75, Math.min(400, duck.y));
+                    
+                    duck.rotation = duck.vx * 0.03;
+                });
+            }
+            
+            updateCrosshairs() {
+                this.players.forEach((player, index) => {
+                    const crosshair = this.crosshairs[index];
+                    const speed = 7;
+                    const mobile = this.mobileControls[index] || { up: false, down: false, left: false, right: false, action: false };
+                    
+                    crosshair.pulse += 0.1;
+                    
+                    // Merge keyboard and mobile controls
+                    const leftPressed = this.pressedKeys.has(player.keys.left) || mobile.left;
+                    const rightPressed = this.pressedKeys.has(player.keys.right) || mobile.right;
+                    const upPressed = this.pressedKeys.has(player.keys.up) || mobile.up;
+                    const downPressed = this.pressedKeys.has(player.keys.down) || mobile.down;
+                    const shootPressed = this.pressedKeys.has(player.keys.shoot) || mobile.action;
+                    
+                    if (leftPressed) {
+                        crosshair.x = Math.max(30, crosshair.x - speed);
+                    }
+                    if (rightPressed) {
+                        crosshair.x = Math.min(1170, crosshair.x + speed);
+                    }
+                    if (upPressed) {
+                        crosshair.y = Math.max(30, crosshair.y - speed);
+                    }
+                    if (downPressed) {
+                        crosshair.y = Math.min(570, crosshair.y + speed);
+                    }
+                    
+                    if (shootPressed && !this.shootCooldown.has(index)) {
+                        this.shoot(index);
+                        this.shootCooldown.add(index);
+                        setTimeout(() => this.shootCooldown.delete(index), 150);
+                    }
+                });
+            }
+            
+            shoot(playerIndex) {
+                const crosshair = this.crosshairs[playerIndex];
+                const hitRadius = 50;
+                
+                this.screenShake = 8;
+                
+                this.ducks.forEach((duck) => {
+                    if (!duck.alive) return;
+                    
+                    const distance = Math.sqrt(
+                        Math.pow(duck.x - crosshair.x, 2) + 
+                        Math.pow(duck.y - crosshair.y, 2)
+                    );
+                    
+                    if (distance < hitRadius) {
+                        duck.alive = false;
+                        this.players[playerIndex].score += duck.points;
+                        duck.vx = (Math.random() - 0.5) * 3;
+                        duck.vy = -2;
+                    }
+                });
+            }
+            
+            updateTimer() {
+                const elapsed = (Date.now() - this.gameStartTime) / 1000;
+                const remaining = Math.max(0, this.gameTime - elapsed);
+                
+                if (remaining <= 0 && this.gameActive) {
+                    this.endGame();
+                }
+                
+                return Math.ceil(remaining);
+            }
+            
+            endGame() {
+                this.gameActive = false;
+                
+                let maxScore = Math.max(...this.players.map(p => p.score));
+                let winners = this.players.filter(p => p.score === maxScore);
+                
+                // Find winner index (0-3)
+                let winnerIndex = 0;
+                if (winners.length === 1) {
+                    winnerIndex = this.players.indexOf(winners[0]);
+                } else {
+                    // Tie - use first winner
+                    winnerIndex = this.players.indexOf(winners[0]);
+                }
+                
+                // Send result to host via postMessage
+                const result = {
+                    scores: this.players.map(p => p.score),
+                    winner: winnerIndex,
+                    meta: { mode: 'jam', duration: this.gameTime }
+                };
+                
+                // Send to parent window (host iframe)
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({
+                        type: 'RESULT',
+                        payload: result
+                    }, '*');
+                }
+                
+                // Also log for console games
+                console.log('RESULT:', JSON.stringify(result));
+                
+                let winText;
+                if (winners.length === 1) {
+                    winText = `Hunter ${winnerIndex + 1} Wins! Score: ${maxScore}`;
+                } else {
+                    winText = `Tie Game! Score: ${maxScore}`;
+                }
+                
+                setTimeout(() => {
+                    alert(winText + '\nPress R to restart');
+                    document.addEventListener('keydown', (e) => {
+                        if (e.code === 'KeyR') {
+                            location.reload();
+                        }
+                    });
+                }, 100);
+            }
+            
+            drawRealisticBackground() {
+                this.time++;
+                
+                if (this.screenShake > 0) {
+                    this.ctx.save();
+                    this.ctx.translate(
+                        (Math.random() - 0.5) * this.screenShake,
+                        (Math.random() - 0.5) * this.screenShake
+                    );
+                    this.screenShake *= 0.85;
+                }
+                
+                const skyGrad = this.ctx.createLinearGradient(0, 0, 0, 600);
+                skyGrad.addColorStop(0, '#1e3c72');
+                skyGrad.addColorStop(0.2, '#2a5298');
+                skyGrad.addColorStop(0.5, '#87CEEB');
+                skyGrad.addColorStop(0.8, '#B0E0E6');
+                skyGrad.addColorStop(1, '#E6F3FF');
+                this.ctx.fillStyle = skyGrad;
+                this.ctx.fillRect(0, 0, 1200, 600);
+                
+                // Sun with glow
+                const sunGrad = this.ctx.createRadialGradient(950, 150, 0, 950, 150, 120);
+                sunGrad.addColorStop(0, '#FFFACD');
+                sunGrad.addColorStop(0.3, '#FFD700');
+                sunGrad.addColorStop(0.6, '#FFA500');
+                sunGrad.addColorStop(0.8, 'rgba(255, 165, 0, 0.5)');
+                sunGrad.addColorStop(1, 'rgba(255, 165, 0, 0)');
+                this.ctx.fillStyle = sunGrad;
+                this.ctx.beginPath();
+                this.ctx.arc(950, 150, 120, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // Ground
+                const groundGrad = this.ctx.createLinearGradient(0, 600, 0, 800);
+                groundGrad.addColorStop(0, '#228B22');
+                groundGrad.addColorStop(0.3, '#32CD32');
+                groundGrad.addColorStop(1, '#006400');
+                this.ctx.fillStyle = groundGrad;
+                this.ctx.fillRect(0, 600, 1200, 200);
+                
+                // Trees
+                for (let i = 0; i < 10; i++) {
+                    const x = 80 + i * 115;
+                    
+                    const trunkGrad = this.ctx.createLinearGradient(x - 12, 460, x + 12, 460);
+                    trunkGrad.addColorStop(0, '#654321');
+                    trunkGrad.addColorStop(0.5, '#8B4513');
+                    trunkGrad.addColorStop(1, '#654321');
+                    this.ctx.fillStyle = trunkGrad;
+                    this.ctx.fillRect(x - 12, 460, 24, 140);
+                    
+                    const leafGrad = this.ctx.createRadialGradient(x, 440, 0, x, 440, 50);
+                    leafGrad.addColorStop(0, '#90EE90');
+                    leafGrad.addColorStop(0.5, '#228B22');
+                    leafGrad.addColorStop(1, '#006400');
+                    this.ctx.fillStyle = leafGrad;
+                    this.ctx.beginPath();
+                    this.ctx.arc(x, 440, 45, 0, Math.PI * 2);
+                    this.ctx.fill();
+                }
+                
+                if (this.screenShake > 0) {
+                    this.ctx.restore();
+                }
+            }
+            
+            drawRealisticDucks() {
+                this.ducks.forEach(duck => {
+                    this.ctx.save();
+                    this.ctx.translate(duck.x, duck.y);
+                    if (duck.rotation) this.ctx.rotate(duck.rotation);
+                    
+                    const scale = duck.size;
+                    this.ctx.scale(scale * duck.direction, scale);
+                    
+                    if (!duck.alive) {
+                        this.ctx.globalAlpha = 0.6;
+                        this.ctx.filter = 'grayscale(80%)';
+                    }
+                    
+                    // Duck body
+                    const bodyGrad = this.ctx.createRadialGradient(0, 0, 0, 0, 0, 30);
+                    bodyGrad.addColorStop(0, duck.color);
+                    bodyGrad.addColorStop(1, this.darkenColor(duck.color, 0.4));
+                    this.ctx.fillStyle = bodyGrad;
+                    this.ctx.beginPath();
+                    this.ctx.ellipse(0, 0, 30, 18, 0, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    // Duck belly
+                    this.ctx.fillStyle = duck.bellyColor;
+                    this.ctx.beginPath();
+                    this.ctx.ellipse(5, 3, 22, 12, 0, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    // Wings
+                    this.ctx.fillStyle = duck.wingColor;
+                    this.ctx.beginPath();
+                    this.ctx.ellipse(-10, -5, 15, 10, 0, 0, Math.PI * 2);
+                    this.ctx.ellipse(10, -5, 15, 10, 0, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    // Head
+                    this.ctx.fillStyle = duck.color;
+                    this.ctx.beginPath();
+                    this.ctx.arc(-25, -8, 12, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    // Beak
+                    this.ctx.fillStyle = '#FFA500';
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(-37, -8);
+                    this.ctx.lineTo(-42, -5);
+                    this.ctx.lineTo(-42, -11);
+                    this.ctx.closePath();
+                    this.ctx.fill();
+                    
+                    // Eye
+                    this.ctx.fillStyle = '#FFF';
+                    this.ctx.beginPath();
+                    this.ctx.arc(-28, -12, 4, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    this.ctx.fillStyle = '#000';
+                    this.ctx.beginPath();
+                    this.ctx.arc(-28, -12, 2, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    this.ctx.restore();
+                });
+            }
+            
+            drawTacticalCrosshairs() {
+                this.crosshairs.forEach((crosshair, index) => {
+                    this.ctx.save();
+                    
+                    this.ctx.shadowColor = crosshair.color;
+                    this.ctx.shadowBlur = 15;
+                    
+                    this.ctx.strokeStyle = crosshair.color;
+                    this.ctx.lineWidth = 4;
+                    this.ctx.beginPath();
+                    this.ctx.arc(crosshair.x, crosshair.y, 30, 0, Math.PI * 2);
+                    this.ctx.stroke();
+                    
+                    this.ctx.lineWidth = 2;
+                    this.ctx.globalAlpha = 0.7;
+                    this.ctx.beginPath();
+                    this.ctx.arc(crosshair.x, crosshair.y, 20, 0, Math.PI * 2);
+                    this.ctx.stroke();
+                    
+                    this.ctx.globalAlpha = 1;
+                    this.ctx.lineWidth = 4;
+                    this.ctx.lineCap = 'round';
+                    
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(crosshair.x - 25, crosshair.y);
+                    this.ctx.lineTo(crosshair.x - 10, crosshair.y);
+                    this.ctx.moveTo(crosshair.x + 10, crosshair.y);
+                    this.ctx.lineTo(crosshair.x + 25, crosshair.y);
+                    this.ctx.moveTo(crosshair.x, crosshair.y - 25);
+                    this.ctx.lineTo(crosshair.x, crosshair.y - 10);
+                    this.ctx.moveTo(crosshair.x, crosshair.y + 10);
+                    this.ctx.lineTo(crosshair.x, crosshair.y + 25);
+                    this.ctx.stroke();
+                    
+                    this.ctx.fillStyle = crosshair.color;
+                    this.ctx.beginPath();
+                    this.ctx.arc(crosshair.x, crosshair.y, 4, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    this.ctx.restore();
+                });
+            }
+            
+            drawProfessionalUI() {
+                const remaining = this.updateTimer();
+                
+                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                this.ctx.fillRect(0, 0, 300, 180);
+                
+                this.ctx.fillStyle = remaining > 10 ? '#FFFFFF' : remaining > 5 ? '#FFFF00' : '#FF0000';
+                this.ctx.font = 'bold 28px Arial';
+                this.ctx.strokeStyle = '#000000';
+                this.ctx.lineWidth = 2;
+                this.ctx.strokeText(`Time: ${remaining}s`, 15, 35);
+                this.ctx.fillText(`Time: ${remaining}s`, 15, 35);
+                
+                this.players.forEach((player, index) => {
+                    this.ctx.fillStyle = player.color;
+                    this.ctx.font = 'bold 22px Arial';
+                    const text = `Hunter ${index + 1}: ${player.score}`;
+                    this.ctx.strokeText(text, 15, 70 + index * 28);
+                    this.ctx.fillText(text, 15, 70 + index * 28);
+                });
+            }
+            
+            darkenColor(color, factor) {
+                const hex = color.replace('#', '');
+                const r = Math.floor(parseInt(hex.substr(0, 2), 16) * (1 - factor));
+                const g = Math.floor(parseInt(hex.substr(2, 2), 16) * (1 - factor));
+                const b = Math.floor(parseInt(hex.substr(4, 2), 16) * (1 - factor));
+                return `rgb(${r}, ${g}, ${b})`;
+            }
+            
+            render() {
+                this.ctx.clearRect(0, 0, 1200, 800);
+                this.drawRealisticBackground();
+                this.drawRealisticDucks();
+                this.drawTacticalCrosshairs();
+                this.drawProfessionalUI();
+            }
+            
+            startGameLoop() {
+                const gameLoop = () => {
+                    if (!this.gameActive) return;
+                    
+                    if (Math.random() < 0.04 && this.ducks.length < 6) {
+                        this.createDuck();
+                    }
+                    
+                    this.updateDucks();
+                    this.updateCrosshairs();
+                    this.render();
+                    
+                    requestAnimationFrame(gameLoop);
+                };
+                
+                gameLoop();
+            }
+        }
+
+        window.addEventListener('load', () => {
+            new UltraRealisticDuckHunt();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "duck-attack-gallery",
+  "version": "1.0.0",
+  "description": "A console-based duck shooting gallery game for 4 players",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js",
+    "test": "node main.js --players 4 --seed 42 --mode test"
+  },
+  "keywords": ["game", "duck", "shooting", "multiplayer", "console"],
+  "author": "Game Jam",
+  "license": "MIT"
+}

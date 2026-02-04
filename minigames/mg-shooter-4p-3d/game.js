@@ -343,10 +343,13 @@ function endGame(victory) {
 if (winnerEl) winnerEl.textContent = maxKills > 0 ? 'Winner: Player ' + (winner + 1) + ' with ' + maxKills + ' kills!' : 'Draw!';
   const endScreen = document.getElementById('endScreen');
   if (endScreen) endScreen.classList.add('visible');
-  window.parent.postMessage({
-    type: 'RESULT',
-    payload: { gameId, scores, winner }
-  }, '*');
+  // Send to parent window (host iframe)
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({
+      type: 'RESULT',
+      payload: { gameId, scores, winner }
+    }, '*');
+  }
 }
 
 function gameLoop() {

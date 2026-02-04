@@ -1,0 +1,7 @@
+{
+  "id": "racer-main",
+  "name": "4-Player Split Screen Racing",
+  "type": "js",
+  "players": 4,
+  "entry": "index.html"
+}

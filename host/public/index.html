@@ -91,11 +91,38 @@
       padding: 12px;
       border-radius: 12px;
       border: 2px solid var(--mp-blue);
-      background: rgba(26, 26, 46, 0.8);
-      color: var(--text-primary);
+      background: rgba(45, 53, 97, 0.95);
+      color: #ffffff;
       font-size: 14px;
       width: 100%;
       font-family: 'Nunito', sans-serif;
+      min-height: 44px;
+      cursor: pointer;
+      z-index: 1;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 40px;
+    }
+    
+    select:focus {
+      outline: 2px solid var(--mp-blue-light);
+      outline-offset: 2px;
+      border-color: var(--mp-blue-light);
+    }
+    
+    select:hover {
+      border-color: var(--mp-blue-light);
+      background-color: rgba(58, 74, 122, 0.95);
+    }
+    
+    select option {
+      background: rgba(45, 53, 97, 0.95);
+      color: #ffffff;
+      padding: 8px;
     }
     
     iframe {
@@ -104,6 +131,35 @@
       border: 3px solid var(--mp-blue);
       border-radius: 16px;
       box-shadow: var(--shadow-md);
+      display: none; /* Hidden by default, shown when game starts */
+    }
+    
+    iframe:fullscreen {
+      border: none;
+      border-radius: 0;
+      width: 100vw;
+      height: 100vh;
+    }
+    
+    iframe:-webkit-full-screen {
+      border: none;
+      border-radius: 0;
+      width: 100vw;
+      height: 100vh;
+    }
+    
+    iframe:-moz-full-screen {
+      border: none;
+      border-radius: 0;
+      width: 100vw;
+      height: 100vh;
+    }
+    
+    iframe:-ms-fullscreen {
+      border: none;
+      border-radius: 0;
+      width: 100vw;
+      height: 100vh;
     }
     
     code {
@@ -232,7 +288,7 @@
       <div class="card-header">
         <h2>🎮 Run a Minigame</h2>
       </div>
-      <p style="color:var(--text-secondary); margin-bottom:16px;">Pick a game → Run. JS games open below; Node.js and Pygame run in Docker and return scores.</p>
+      <p style="color:var(--text-secondary); margin-bottom:16px;">Pick a game → Run. JS games open in fullscreen; Node.js and Pygame run in Docker and return scores.</p>
       <select id="gameSelect"></select>
       <div style="margin-top:16px; display:flex; gap:12px;">
         <button id="runBtn" style="flex:1;">▶️ Run Game</button>
@@ -249,9 +305,9 @@
       <div class="card-header">
         <h2>📱 Mobile Controllers</h2>
       </div>
-      <p style="color:var(--text-secondary); margin-bottom:16px;">Scan QR code to connect your phone as a controller</p>
-      <div id="qrcodeContainer" style="text-align:center; margin:20px 0;">
-        <img id="qrcode" src="" alt="QR Code"/>
+      <p style="color:var(--text-secondary); margin-bottom:16px;">Scan QR code to connect your phone as a controller. Works for all minigames!</p>
+      <div id="qrcodeContainer" style="text-align:center; margin:20px 0; transition: all 0.3s ease;">
+        <img id="qrcode" src="" alt="QR Code" style="max-width:100%; height:auto;"/>
       </div>
       <div id="controllerStatus">
         Loading QR code...
@@ -284,8 +340,7 @@
   </div>
 
   <div style="margin-top:32px;">
-    <h2 style="text-align:center; margin-bottom:20px;">🎲 JS Minigame View</h2>
-    <iframe id="frame" src="about:blank"></iframe>
+    <iframe id="frame" src="about:blank" style="display:none;"></iframe>
   </div>
 
   <script src="host.js"></script>

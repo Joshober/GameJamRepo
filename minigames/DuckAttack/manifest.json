@@ -1,0 +1,22 @@
+{
+  "id": "mg-duck-attack",
+  "name": "Duck Attack 4-Player",
+  "type": "js",
+  "players": 4,
+  "entry": "duck_hunt_ultra_realistic.html",
+  "description": "4-player duck hunting game with mobile controller support",
+  "duration": 60,
+  "controls": {
+    "keyboard": {
+      "player1": "WASD + Space",
+      "player2": "Arrow Keys + Enter", 
+      "player3": "IJKL + U",
+      "player4": "TFGH + R"
+    },
+    "mobile": {
+      "enabled": true,
+      "qr_codes": true,
+      "note": "Uses host's unified QR code system"
+    }
+  }
+}

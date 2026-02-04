@@ -11,6 +11,7 @@ const ws = new WebSocket(`ws://${location.host}`);
 
 let currentState = null;
 const connectedControllers = new Set();
+let currentGame = null;
 
 // Load QR code on page load
 async function loadQRCode() {
@@ -19,6 +20,7 @@ async function loadQRCode() {
     const data = await resp.json();
     qrcodeEl.src = data.qrCode;
     controllerStatusEl.textContent = `Scan to connect: ${data.url}`;
+    updateQRDisplay();
   } catch (e) {
     controllerStatusEl.textContent = "Failed to load QR code";
     console.error(e);
@@ -35,20 +37,53 @@ ws.onmessage = (e) => {
   }
   if (msg.type === "START_JS") {
     const game = msg.payload.game;
-    // load JS game directly from repo-mounted minigames folder via host static? not served automatically.
-    // simplest: JS minigames are plain files; host will serve them via a small proxy endpoint later if needed.
-    // For now: we load from /minigame?path=... (implemented below as a quick static mapping approach)
-    frame.src = `/minigame/${game.folder}/index.html?gameId=${encodeURIComponent(game.id)}`;
+    currentGame = game;
+    updateQRDisplay();
+    // Load JS game in iframe and make it fullscreen
+    // Extract the filename from the entry path (e.g., "minigames/DuckAttack/duck_hunt_ultra_realistic.html" -> "duck_hunt_ultra_realistic.html")
+    const entryFile = game.entry.split('/').pop();
+    const gameUrl = `/minigame/${game.folder}/${entryFile}?gameId=${encodeURIComponent(game.id)}`;
+    
+    // Load game in iframe
+    frame.src = gameUrl;
+    
+    // Show iframe and make it fullscreen
+    frame.style.display = 'block';
+    frame.onload = () => {
+      // Request fullscreen for the iframe
+      if (frame.requestFullscreen) {
+        frame.requestFullscreen().catch(err => {
+          console.log("Fullscreen request failed:", err);
+        });
+      } else if (frame.webkitRequestFullscreen) {
+        frame.webkitRequestFullscreen();
+      } else if (frame.mozRequestFullScreen) {
+        frame.mozRequestFullScreen();
+      } else if (frame.msRequestFullscreen) {
+        frame.msRequestFullscreen();
+      }
+    };
+  }
+  if (msg.type === "PRIZES_AWARDED") {
+    // Game finished, clear current game after a delay
+    setTimeout(() => {
+      currentGame = null;
+      updateQRDisplay();
+    }, 5000);
   }
   if (msg.type === "MOBILE_CONTROL") {
     // Forward mobile control event to game iframe
-    if (frame.contentWindow) {
-      frame.contentWindow.postMessage({
-        type: "MOBILE_CONTROL",
-        player: msg.player,
-        button: msg.button,
-        pressed: msg.pressed
-      }, "*");
+    if (frame && frame.contentWindow) {
+      try {
+        frame.contentWindow.postMessage({
+          type: "MOBILE_CONTROL",
+          player: msg.player,
+          button: msg.button,
+          pressed: msg.pressed
+        }, "*");
+      } catch (e) {
+        console.warn("Failed to send mobile control to game iframe:", e);
+      }
     }
   }
   if (msg.type === "CONTROLLER_JOINED") {
@@ -71,6 +106,27 @@ function updateControllerStatus() {
   } else {
     const players = Array.from(connectedControllers).sort().join(", ");
     controllerStatusEl.textContent = `${count} controller(s) connected: Player ${players}`;
+  }
+}
+
+function updateQRDisplay() {
+  const qrContainer = document.getElementById("qrcodeContainer");
+  if (!qrContainer) return;
+  
+  if (currentGame) {
+    qrContainer.style.opacity = "1";
+    qrContainer.style.border = "3px solid var(--mp-green)";
+    qrContainer.style.borderRadius = "12px";
+    qrContainer.style.padding = "12px";
+    qrContainer.style.background = "rgba(76, 175, 80, 0.1)";
+    qrContainer.setAttribute("title", `Game active: ${currentGame.name}. QR code ready for controllers.`);
+  } else {
+    qrContainer.style.opacity = "1";
+    qrContainer.style.border = "3px solid var(--mp-blue)";
+    qrContainer.style.borderRadius = "12px";
+    qrContainer.style.padding = "12px";
+    qrContainer.style.background = "rgba(74, 144, 226, 0.1)";
+    qrContainer.setAttribute("title", "QR code works for all minigames. Scan to connect your phone as a controller.");
   }
 }
 
@@ -174,14 +230,33 @@ function showPrizeBreakdown(data) {
 }
 
 async function refreshGames() {
-  const games = await (await fetch("/api/games")).json();
-  gameSelect.innerHTML = "";
-  for (const g of games) {
-    const opt = document.createElement("option");
-    opt.value = g.id;
-    const typeBadge = g.type === 'js' ? 'badge-js' : g.type === 'node' ? 'badge-node' : 'badge-pygame';
-    opt.innerHTML = `${g.id} — ${g.name} <span class="badge ${typeBadge}">${g.type}</span>`;
-    gameSelect.appendChild(opt);
+  try {
+    const games = await (await fetch("/api/games")).json();
+    gameSelect.innerHTML = "";
+    
+    // Add default placeholder option
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Select a game...";
+    placeholder.disabled = true;
+    placeholder.selected = true;
+    gameSelect.appendChild(placeholder);
+    
+    for (const g of games) {
+      const opt = document.createElement("option");
+      opt.value = g.id;
+      const typeBadge = g.type === 'js' ? 'badge-js' : g.type === 'node' ? 'badge-node' : 'badge-pygame';
+      opt.innerHTML = `${g.id} — ${g.name} <span class="badge ${typeBadge}">${g.type}</span>`;
+      gameSelect.appendChild(opt);
+    }
+    
+    // Make sure select is visible
+    gameSelect.style.display = "block";
+    gameSelect.style.visibility = "visible";
+    gameSelect.style.opacity = "1";
+  } catch (e) {
+    console.error("Failed to load games:", e);
+    gameSelect.innerHTML = '<option value="">Error loading games</option>';
   }
 }
 
@@ -205,6 +280,22 @@ window.addEventListener("message", (evt) => {
   if (evt?.data?.type === "RESULT") {
     // forward to server via WS
     ws.send(JSON.stringify({ type: "RESULT", payload: evt.data.payload }));
+    // Exit fullscreen and hide iframe after result is sent
+    if (document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement) {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      } else if (document.mozCancelFullScreen) {
+        document.mozCancelFullScreen();
+      } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+      }
+    }
+    setTimeout(() => {
+      frame.style.display = 'none';
+      frame.src = 'about:blank';
+    }, 1000);
   }
 });
 

@@ -5,6 +5,7 @@ import { spawn } from "child_process";
 import express from "express";
 import { WebSocketServer } from "ws";
 import QRCode from "qrcode";
+import os from "os";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,6 +16,149 @@ app.use(express.json());
 const REPO_ROOT = process.env.REPO_ROOT || "/repo";
 const RUNNER_URL = process.env.RUNNER_URL || "http://runner:5001";
 const MINIGAMES_DIR = path.join(REPO_ROOT, "minigames");
+const RUN_LOCAL = process.env.RUN_LOCAL === "true" || process.env.RUN_LOCAL === "1";
+
+// Control file path (platform-aware)
+const CONTROL_FILE = os.platform() === "win32" 
+  ? path.join(os.tmpdir(), "pygame_controls.json")
+  : "/tmp/pygame_controls.json";
+
+// Local control state for mobile controllers (when running locally)
+let localControlState = {};
+
+// Control mapping for each game - maps mobile buttons to game-specific controls
+const GAME_CONTROL_MAPPINGS = {
+  // Standard games (Portal, BoredGame, etc.) - use standard mapping
+  "default": {
+    // Mobile button -> game control mapping per player
+    player1: { up: "up", down: "down", left: "left", right: "right", action: "action", aim_up: "aim_up", aim_down: "aim_down" },
+    player2: { up: "up", down: "down", left: "left", right: "right", action: "action", aim_up: "aim_up", aim_down: "aim_down" },
+    player3: { up: "up", down: "down", left: "left", right: "right", action: "action", aim_up: "aim_up", aim_down: "aim_down" },
+    player4: { up: "up", down: "down", left: "left", right: "right", action: "action", aim_up: "aim_up", aim_down: "aim_down" },
+    // Control hints for UI
+    hints: {
+      player1: "WASD+Space",
+      player2: "Arrows+Enter",
+      player3: "IJKL+U",
+      player4: "TFGH+R"
+    }
+  },
+  // Racing game - different control scheme
+  "racer-main": {
+    // Racing: Player 1 = Arrows, Player 2 = WASD, Player 3 = IJKL, Player 4 = Numpad
+    player1: { up: "up", down: "down", left: "left", right: "right", action: null }, // Arrows - up=accelerate, left/right=steer
+    player2: { up: "up", down: "down", left: "left", right: "right", action: null }, // WASD
+    player3: { up: "up", down: "down", left: "left", right: "right", action: null }, // IJKL
+    player4: { up: "up", down: "down", left: "left", right: "right", action: null }, // Numpad
+    hints: {
+      player1: "Arrows",
+      player2: "WASD",
+      player3: "IJKL",
+      player4: "Numpad"
+    }
+  },
+  // Mario game - uses jump instead of action
+  "super-mario-python": {
+    // Mario: Player 1 = A/D/W/S, Player 2 = Arrows, Player 3 = J/L/I/K, Player 4 = Numpad
+    // Mobile "up" maps to "jump", "action" not used
+    player1: { up: "jump", down: "down", left: "left", right: "right", action: null },
+    player2: { up: "jump", down: "down", left: "left", right: "right", action: null },
+    player3: { up: "jump", down: "down", left: "left", right: "right", action: null },
+    player4: { up: "jump", down: "down", left: "left", right: "right", action: null },
+    hints: {
+      player1: "A/D/W/S",
+      player2: "Arrows",
+      player3: "J/L/I/K",
+      player4: "Numpad"
+    }
+  },
+  // Portal game - standard with aim
+  "mg-portal-2d-pygame": {
+    player1: { up: "up", down: "down", left: "left", right: "right", action: "action", aim_up: "aim_up", aim_down: "aim_down" },
+    player2: { up: "up", down: "down", left: "left", right: "right", action: "action", aim_up: "aim_up", aim_down: "aim_down" },
+    player3: { up: "up", down: "down", left: "left", right: "right", action: "action", aim_up: "aim_up", aim_down: "aim_down" },
+    player4: { up: "up", down: "down", left: "left", right: "right", action: "action", aim_up: "aim_up", aim_down: "aim_down" },
+    hints: {
+      player1: "WASD+Space",
+      player2: "Arrows+Enter",
+      player3: "IJKL+U",
+      player4: "TFGH+R"
+    }
+  },
+  // BoredGame - farming game with extra buttons
+  "mg-bored-game": {
+    player1: { 
+      up: "up", down: "down", left: "left", right: "right", 
+      action: "action", 
+      plant: "plant", 
+      eat: "eat", 
+      use: "use",
+      interact: "interact",
+      aim_up: "inventory_prev",  // Map aim_up to inventory_prev (mouse wheel up)
+      aim_down: "inventory_next"  // Map aim_down to inventory_next (mouse wheel down)
+    },
+    player2: { 
+      up: "up", down: "down", left: "left", right: "right", 
+      action: "action", 
+      plant: "plant", 
+      eat: "eat", 
+      use: "use",
+      interact: "interact",
+      aim_up: "inventory_prev",
+      aim_down: "inventory_next"
+    },
+    player3: { 
+      up: "up", down: "down", left: "left", right: "right", 
+      action: "action", 
+      plant: "plant", 
+      eat: "eat", 
+      use: "use",
+      interact: "interact",
+      aim_up: "inventory_prev",
+      aim_down: "inventory_next"
+    },
+    player4: { 
+      up: "up", down: "down", left: "left", right: "right", 
+      action: "action", 
+      plant: "plant", 
+      eat: "eat", 
+      use: "use",
+      interact: "interact",
+      aim_up: "inventory_prev",
+      aim_down: "inventory_next"
+    },
+    hints: {
+      player1: "WASD+Space+E+R+Enter",
+      player2: "Arrows+Enter+E+R",
+      player3: "IJKL+U+E+R+Enter",
+      player4: "TFGH+R+E+R+Enter"
+    }
+  },
+  // DuckAttack - JS duck hunting game
+  "mg-duck-attack": {
+    player1: { up: "up", down: "down", left: "left", right: "right", action: "action" },
+    player2: { up: "up", down: "down", left: "left", right: "right", action: "action" },
+    player3: { up: "up", down: "down", left: "left", right: "right", action: "action" },
+    player4: { up: "up", down: "down", left: "left", right: "right", action: "action" },
+    hints: {
+      player1: "WASD+Space",
+      player2: "Arrows+Enter",
+      player3: "IJKL+U",
+      player4: "TFGH+R"
+    }
+  }
+};
+
+function getControlMapping(gameId) {
+  return GAME_CONTROL_MAPPINGS[gameId] || GAME_CONTROL_MAPPINGS["default"];
+}
+
+function mapMobileControlToGame(gameId, playerNum, mobileButton) {
+  const mapping = getControlMapping(gameId);
+  const playerKey = `player${playerNum}`;
+  const playerMapping = mapping[playerKey] || mapping.player1;
+  return playerMapping[mobileButton] || null; // Returns null if button not used in this game
+}
 
 function safeReadJson(p) {
   return JSON.parse(fs.readFileSync(p, "utf8"));
@@ -132,6 +276,108 @@ function runNodeGame(entryPath, args) {
   });
 }
 
+function runPygameLocal(entryPath, args) {
+  return new Promise((resolve) => {
+    // Clear control state before starting
+    localControlState = {};
+    updateLocalControlFile();
+    
+    // Determine Python command (python3 on Linux/Mac, python on Windows)
+    const pythonCmd = os.platform() === "win32" ? "python" : "python3";
+    const cmd = [pythonCmd, entryPath, ...args];
+    
+    const proc = spawn(cmd[0], cmd.slice(1), {
+      cwd: path.dirname(entryPath),
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env } // Pass through environment (including DISPLAY if set)
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    proc.stdout.on("data", (data) => {
+      stdout += data.toString();
+      // Also output to console so user can see game output
+      process.stdout.write(data);
+    });
+
+    proc.stderr.on("data", (data) => {
+      stderr += data.toString();
+      process.stderr.write(data);
+    });
+
+    proc.on("close", (code) => {
+      // Clear control state after game ends
+      localControlState = {};
+      updateLocalControlFile();
+      
+      // Look for line like: RESULT: {...json...}
+      let resultLine = null;
+      for (const line of stdout.split("\n")) {
+        if (line.startsWith("RESULT:")) {
+          resultLine = line.substring("RESULT:".length).trim();
+          break;
+        }
+      }
+
+      if (code !== 0) {
+        resolve({
+          ok: false,
+          error: "Pygame process failed",
+          returncode: code,
+          stdout: stdout.slice(-4000),
+          stderr: stderr.slice(-4000),
+        });
+        return;
+      }
+
+      if (!resultLine) {
+        resolve({
+          ok: false,
+          error: "Missing RESULT line in stdout",
+          stdout: stdout.slice(-4000),
+          stderr: stderr.slice(-4000),
+        });
+        return;
+      }
+
+      try {
+        const payload = JSON.parse(resultLine);
+        resolve({ ok: true, result: payload });
+      } catch (e) {
+        resolve({
+          ok: false,
+          error: `Invalid RESULT JSON: ${e.message}`,
+          raw: resultLine,
+          stdout: stdout.slice(-4000),
+          stderr: stderr.slice(-4000),
+        });
+      }
+    });
+
+    // Timeout after 120 seconds
+    setTimeout(() => {
+      proc.kill();
+      localControlState = {};
+      updateLocalControlFile();
+      resolve({
+        ok: false,
+        error: "Process timeout (120s)",
+        stdout: stdout.slice(-4000),
+        stderr: stderr.slice(-4000),
+      });
+    }, 120000);
+  });
+}
+
+function updateLocalControlFile() {
+  try {
+    fs.writeFileSync(CONTROL_FILE, JSON.stringify(localControlState, null, 2));
+  } catch (err) {
+    console.error("Failed to write control file:", err);
+  }
+}
+
 let state = {
   players: ["P1","P2","P3","P4"],
   scores: [0,0,0,0],  // Total points/score
@@ -161,6 +407,11 @@ state.games = listMinigames();
 
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/minigame", express.static(MINIGAMES_DIR));
+
+// Serve controller.html for /controller route
+app.get("/controller", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "controller.html"));
+});
 
 app.get("/api/games", (req, res) => {
   state.games = listMinigames();
@@ -253,21 +504,47 @@ app.post("/api/run/:gameId", async (req, res) => {
     let result;
     currentGame = game; // Track running game for mobile controls
     
+    // Get control hints for this game
+    const controlMapping = getControlMapping(game.id);
+    const hints = controlMapping.hints || GAME_CONTROL_MAPPINGS["default"].hints;
+    
+    // Broadcast game start to all controllers
+    broadcast({ 
+      type: "GAME_STARTED", 
+      payload: { 
+        game: { id: game.id, name: game.name, type: game.type },
+        controlHints: hints
+      } 
+    });
+    
     if (game.type === "pygame") {
-      // call runner
-      const resp = await fetch(`${RUNNER_URL}/run`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          entry: game.entry,
-          players: 4,
-          seed: Math.floor(Math.random()*1e9)
-        })
-      });
-      const data = await resp.json();
-      if (!data.ok) throw new Error(data.error || "Runner failed");
-      result = data.result;
-      currentGame = null; // Clear after game completes
+      if (RUN_LOCAL) {
+        // Run locally with visible window
+        const entryPath = path.join(REPO_ROOT, game.entry);
+        const args = ["--players", "4", "--seed", String(Math.floor(Math.random()*1e9)), "--mode", "jam"];
+        const data = await runPygameLocal(entryPath, args);
+        if (!data.ok) throw new Error(data.error || "Pygame game failed");
+        result = data.result;
+        currentGame = null;
+        broadcast({ type: "GAME_ENDED", payload: {} });
+      } else {
+        // call runner (Docker/headless)
+        const resp = await fetch(`${RUNNER_URL}/run`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            entry: game.entry,
+            players: 4,
+            seed: Math.floor(Math.random()*1e9)
+          })
+        });
+        const data = await resp.json();
+        if (!data.ok) throw new Error(data.error || "Runner failed");
+        result = data.result;
+        currentGame = null; // Clear after game completes
+        // Broadcast game end
+        broadcast({ type: "GAME_ENDED", payload: {} });
+      }
     } else if (game.type === "node") {
       // run Node.js game via subprocess
       const entryPath = path.join(REPO_ROOT, game.entry);
@@ -275,6 +552,9 @@ app.post("/api/run/:gameId", async (req, res) => {
       const data = await runNodeGame(entryPath, args);
       if (!data.ok) throw new Error(data.error || "Node.js game failed");
       result = data.result;
+      currentGame = null;
+      // Broadcast game end
+      broadcast({ type: "GAME_ENDED", payload: {} });
     } else if (game.type === "js") {
       // JS games run in browser; host waits for WS RESULT from client
       // We just broadcast "START_JS" and return immediately
@@ -293,6 +573,7 @@ app.post("/api/run/:gameId", async (req, res) => {
 
   } catch (e) {
     currentGame = null;
+    broadcast({ type: "GAME_ENDED", payload: {} });
     res.status(500).json({ ok: false, error: String(e) });
   }
 });
@@ -391,8 +672,16 @@ function applyResult(result) {
   return prizes;
 }
 
-const server = app.listen(8080, () => {
-  console.log("Host running on http://localhost:8080");
+const PORT = process.env.PORT || 8080;
+const server = app.listen(PORT, '0.0.0.0', () => {
+  const networkIP = getLocalIP();
+  console.log(`Host running on http://localhost:${PORT}`);
+  console.log(`Network access: http://${networkIP}:${PORT}`);
+  console.log(`QR code URL: http://${networkIP}:${PORT}/controller`);
+  if (RUN_LOCAL) {
+    console.log(`\n⚠️  LOCAL MODE ENABLED - Pygame games will run with visible windows`);
+    console.log(`   Control file: ${CONTROL_FILE}`);
+  }
 });
 
 // Mobile controller tracking
@@ -409,6 +698,23 @@ wss.on("connection", (ws, req) => {
   
   if (isMobile) {
     // Mobile controller connection
+    // Send current player availability when connecting
+    const getTakenPlayers = () => {
+      const taken = [];
+      for (let p = 1; p <= 4; p++) {
+        const existing = mobileControllers.get(p) || new Set();
+        if (existing.size > 0) {
+          taken.push(p);
+        }
+      }
+      return taken;
+    };
+    
+    ws.send(JSON.stringify({ 
+      type: "PLAYER_AVAILABILITY", 
+      takenPlayers: getTakenPlayers() 
+    }));
+    
     ws.on("message", (msg) => {
       try {
         const data = JSON.parse(msg.toString());
@@ -419,9 +725,9 @@ wss.on("connection", (ws, req) => {
           
           // Find available slot
           if (requestedPlayer && requestedPlayer >= 1 && requestedPlayer <= 4) {
-            // Check if slot is available (less than 2 controllers per slot)
+            // Check if slot is available (only 1 controller per slot)
             const existing = mobileControllers.get(requestedPlayer) || new Set();
-            if (existing.size < 2) {
+            if (existing.size === 0) {
               assignedPlayer = requestedPlayer;
             }
           }
@@ -430,7 +736,7 @@ wss.on("connection", (ws, req) => {
           if (!assignedPlayer) {
             for (let p = 1; p <= 4; p++) {
               const existing = mobileControllers.get(p) || new Set();
-              if (existing.size < 2) {
+              if (existing.size === 0) {
                 assignedPlayer = p;
                 break;
               }
@@ -443,11 +749,30 @@ wss.on("connection", (ws, req) => {
             }
             mobileControllers.get(assignedPlayer).add(ws);
             controllerAssignments.set(ws, assignedPlayer);
+            
+            // Get control hints for current game
+            const gameId = currentGame ? currentGame.id : null;
+            const controlMapping = getControlMapping(gameId);
+            const hints = controlMapping.hints || GAME_CONTROL_MAPPINGS["default"].hints;
+            
             ws.send(JSON.stringify({ 
               type: "JOINED", 
               player: assignedPlayer,
-              controls: getControlMapping(assignedPlayer)
+              currentGame: currentGame ? { id: currentGame.id, name: currentGame.name } : null,
+              controlHints: hints
             }));
+            // Broadcast to all mobile controllers about player availability change
+            const takenPlayers = getTakenPlayers();
+            for (const controllers of mobileControllers.values()) {
+              for (const controllerWs of controllers) {
+                if (controllerWs !== ws && controllerWs.readyState === 1) {
+                  controllerWs.send(JSON.stringify({ 
+                    type: "PLAYER_AVAILABILITY", 
+                    takenPlayers: takenPlayers 
+                  }));
+                }
+              }
+            }
             broadcast({ type: "CONTROLLER_JOINED", player: assignedPlayer });
           } else {
             ws.send(JSON.stringify({ type: "JOIN_FAILED", error: "All slots full" }));
@@ -456,23 +781,41 @@ wss.on("connection", (ws, req) => {
           // Forward control event to game iframe (JS games) or runner (pygame games)
           const playerNum = controllerAssignments.get(ws);
           if (playerNum) {
+            const gameId = currentGame ? currentGame.id : null;
+            // Map mobile button to game-specific control
+            const gameButton = mapMobileControlToGame(gameId, playerNum, data.button);
+            
+            // Skip if button not used in this game
+            if (!gameButton) {
+              return;
+            }
+            
             if (currentGame && currentGame.type === "pygame") {
-              // Forward to runner for pygame games
-              fetch(`${RUNNER_URL}/control`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  player: playerNum,
-                  button: data.button,
-                  pressed: data.pressed
-                })
-              }).catch(err => console.error("Failed to forward control to runner:", err));
+              if (RUN_LOCAL) {
+                // Write to local control file
+                if (!localControlState[playerNum]) {
+                  localControlState[playerNum] = {};
+                }
+                localControlState[playerNum][gameButton] = data.pressed;
+                updateLocalControlFile();
+              } else {
+                // Forward to runner for pygame games (Docker mode)
+                fetch(`${RUNNER_URL}/control`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    player: playerNum,
+                    button: gameButton,
+                    pressed: data.pressed
+                  })
+                }).catch(err => console.error("Failed to forward control to runner:", err));
+              }
             } else {
               // Broadcast control event to all clients (JS game iframe will pick it up)
               broadcast({ 
                 type: "MOBILE_CONTROL", 
                 player: playerNum,
-                button: data.button,
+                button: gameButton, // Use mapped button
                 pressed: data.pressed
               });
             }
@@ -492,6 +835,20 @@ wss.on("connection", (ws, req) => {
           }
         }
         controllerAssignments.delete(ws);
+        
+        // Broadcast to all mobile controllers about player availability change
+        const takenPlayers = getTakenPlayers();
+        for (const controllers of mobileControllers.values()) {
+          for (const controllerWs of controllers) {
+            if (controllerWs.readyState === 1) {
+              controllerWs.send(JSON.stringify({ 
+                type: "PLAYER_AVAILABILITY", 
+                takenPlayers: takenPlayers 
+              }));
+            }
+          }
+        }
+        
         broadcast({ type: "CONTROLLER_LEFT", player: playerNum });
       }
     });
@@ -499,6 +856,13 @@ wss.on("connection", (ws, req) => {
     // Regular client (host UI or game iframe)
     clients.add(ws);
     ws.send(JSON.stringify({ type: "STATE", payload: state }));
+    // Send current game info if available
+    if (currentGame) {
+      ws.send(JSON.stringify({ 
+        type: "GAME_STARTED", 
+        payload: { game: { id: currentGame.id, name: currentGame.name, type: currentGame.type } } 
+      }));
+    }
 
     ws.on("message", (msg) => {
       try {
@@ -507,8 +871,10 @@ wss.on("connection", (ws, req) => {
         // JS minigame sends {scores:[..], winner:..}
         const prizes = applyResult(data.payload);
         state.lastResult = { gameId: data.payload?.gameId ?? "js", result: data.payload, prizes };
+        currentGame = null; // Clear after JS game completes
         broadcast({ type: "STATE", payload: state });
         broadcast({ type: "PRIZES_AWARDED", payload: { gameId: data.payload?.gameId ?? "js", prizes } });
+        broadcast({ type: "GAME_ENDED", payload: {} });
       }
       } catch {}
     });
@@ -516,16 +882,6 @@ wss.on("connection", (ws, req) => {
     ws.on("close", () => clients.delete(ws));
   }
 });
-
-function getControlMapping(playerNum) {
-  const mappings = {
-    1: { up: "W", down: "S", left: "A", right: "D", action: "Space" },
-    2: { up: "↑", down: "↓", left: "←", right: "→", action: "Enter" },
-    3: { up: "I", down: "K", left: "J", right: "L", action: "U" },
-    4: { up: "T", down: "G", left: "F", right: "H", action: "R" }
-  };
-  return mappings[playerNum] || {};
-}
 
 function broadcast(obj) {
   const s = JSON.stringify(obj);
@@ -540,12 +896,55 @@ function broadcast(obj) {
   }
 }
 
+// Get local network IP address (not localhost)
+function getLocalIP() {
+  const ifaces = os.networkInterfaces();
+  // First, try to find a non-internal IPv4 address
+  for (const name of Object.keys(ifaces)) {
+    for (const iface of ifaces[name]) {
+      // Find first IPv4 address that's not internal (not 127.0.0.1)
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  // Fallback to localhost if no network interface found
+  return '127.0.0.1';
+}
+
 // QR code generation endpoint
 app.get("/api/qrcode", async (req, res) => {
+  console.log("QR endpoint called");
   try {
-    const protocol = req.protocol;
-    const host = req.get("host");
-    const controllerUrl = `${protocol}://${host}/controller`;
+    const port = process.env.PORT || 8080;
+    const protocol = req.protocol === 'https' ? 'https' : 'http';
+    
+    // Try to get IP from request host first (works when accessed from network)
+    let hostIP = req.get("host");
+    if (hostIP && hostIP.includes(':')) {
+      hostIP = hostIP.split(':')[0];
+    }
+    
+    // Check environment variable first (for Docker)
+    const dockerHost = process.env.HOST_IP;
+    let networkIP;
+    
+    // If host is localhost/127.0.0.1, use environment variable or detect network IP
+    if (!hostIP || hostIP === 'localhost' || hostIP === '127.0.0.1') {
+      if (dockerHost) {
+        networkIP = dockerHost;
+        console.log(`QR: Using HOST_IP from environment: ${networkIP}`);
+      } else {
+        networkIP = getLocalIP();
+        console.log(`QR: Using detected IP: ${networkIP}`);
+      }
+    } else {
+      // Use the host IP from request (when accessed from network)
+      networkIP = hostIP;
+      console.log(`QR: Using request host IP: ${networkIP}`);
+    }
+    
+    const controllerUrl = `${protocol}://${networkIP}:${port}/controller`;
     
     const qrCodeDataUrl = await QRCode.toDataURL(controllerUrl, {
       errorCorrectionLevel: "M",
@@ -554,7 +953,7 @@ app.get("/api/qrcode", async (req, res) => {
       margin: 2
     });
     
-    res.json({ url: controllerUrl, qrCode: qrCodeDataUrl });
+    res.json({ url: controllerUrl, qrCode: qrCodeDataUrl, ip: networkIP });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

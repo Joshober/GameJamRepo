@@ -9,6 +9,7 @@ services:
     environment:
       - REPO_ROOT=/repo
       - RUNNER_URL=http://runner:5001
+      - HOST_IP=${HOST_IP:-}
     depends_on:
       - runner
 
